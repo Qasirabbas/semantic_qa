@@ -1,0 +1,150 @@
+<!-- semantic_qa/templates/semantic_qa/index.html -->
+{% extends 'semantic_qa/base.html' %}
+{% load static %}
+{% load i18n %}
+
+{% block title %}{% trans "Semantic QA Search" %}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <!-- Search Header -->
+        <div class="text-center mb-5">
+            <h1 class="display-4 mb-3">
+                <i class="fas fa-search text-primary me-3"></i>
+                {% trans "Semantic QA Search" %}
+            </h1>
+            <p class="lead text-muted">
+                {% trans "Find answers using intelligent semantic search powered by AI" %}
+            </p>
+        </div>
+
+        <!-- Search Form -->
+        <div class="card shadow-lg">
+            <div class="card-body p-4">
+                <form id="searchForm" method="get" action="{% url 'semantic_qa:search_results' %}">
+                    <div class="row">
+                        <div class="col-md-8">
+                            <div class="mb-3">
+                                <input type="text" 
+                                       class="form-control form-control-lg" 
+                                       name="q" 
+                                       id="searchQuery"
+                                       placeholder="{% trans 'Enter SKU, question, or keywords...' %}"
+                                       autocomplete="off"
+                                       required>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <select class="form-control form-control-lg" name="lang" id="languageSelect">
+                                    <option value="en">🇺🇸 English</option>
+                                    <option value="zh">🇨🇳 中文</option>
+                                    <option value="es">🇪🇸 Español</option>
+                                    <option value="fr">🇫🇷 Français</option>
+                                    <option value="de">🇩🇪 Deutsch</option>
+                                    <option value="ja">🇯🇵 日本語</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary btn-lg">
+                            <i class="fas fa-search me-2"></i>{% trans "Search" %}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Search Examples -->
+        <div class="mt-4">
+            <h5>{% trans "Search Examples:" %}</h5>
+            <div class="row">
+                <div class="col-md-6">
+                    <ul class="list-unstyled">
+                        <li><small class="text-muted">• {% trans "ABC123 steering wheel" %}</small></li>
+                        <li><small class="text-muted">• {% trans "installation wiring" %}</small></li>
+                        <li><small class="text-muted">• {% trans "control not working" %}</small></li>
+                    </ul>
+                </div>
+                <div class="col-md-6">
+                    <ul class="list-unstyled">
+                        <li><small class="text-muted">• {% trans "XYZ789" %}</small></li>
+                        <li><small class="text-muted">• {% trans "welding troubleshooting" %}</small></li>
+                        <li><small class="text-muted">• {% trans "how to install" %}</small></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Statistics -->
+        <div class="row mt-5">
+            <div class="col-md-4 text-center">
+                <div class="card bg-primary text-white">
+                    <div class="card-body">
+                        <h3>{{ total_entries|default:0 }}</h3>
+                        <p class="mb-0">{% trans "QA Entries" %}</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4 text-center">
+                <div class="card bg-success text-white">
+                    <div class="card-body">
+                        <h3>{{ total_queries|default:0 }}</h3>
+                        <p class="mb-0">{% trans "Searches Performed" %}</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4 text-center">
+                <div class="card bg-info text-white">
+                    <div class="card-body">
+                        <h3>6</h3>
+                        <p class="mb-0">{% trans "Languages Supported" %}</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Popular Searches -->
+        {% if popular_queries %}
+        <div class="mt-5">
+            <h5>{% trans "Popular Searches:" %}</h5>
+            <div class="d-flex flex-wrap gap-2">
+                {% for query in popular_queries %}
+                <span class="badge bg-secondary clickable-badge" 
+                      onclick="document.getElementById('searchQuery').value='{{ query.processed_query }}'"
+                      style="cursor: pointer;">
+                    {{ query.processed_query }} ({{ query.count }})
+                </span>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Simple search functionality
+document.addEventListener('DOMContentLoaded', function() {
+    const searchForm = document.getElementById('searchForm');
+    const searchQuery = document.getElementById('searchQuery');
+    
+    // Focus on search input
+    searchQuery.focus();
+    
+    // Handle form submission
+    searchForm.addEventListener('submit', function(e) {
+        const query = searchQuery.value.trim();
+        if (!query) {
+            e.preventDefault();
+            alert('{% trans "Please enter a search query" %}');
+            return false;
+        }
+    });
+});
+</script>
+{% endblock %}

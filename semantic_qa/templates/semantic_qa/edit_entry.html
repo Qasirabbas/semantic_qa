@@ -1,0 +1,31 @@
+ 
+
+{% block title %}编辑条目{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2 class="mb-4">编辑条目</h2>
+    <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        {% if form.non_field_errors %}
+            <div class="alert alert-danger">
+                {{ form.non_field_errors }}
+            </div>
+        {% endif %}
+        {% for field in form %}
+            <div class="mb-3">
+                <label for="{{ field.id_for_label }}" class="form-label">{{ field.label }}</label>
+                {{ field }}
+                {% if field.help_text %}
+                    <div class="form-text">{{ field.help_text }}</div>
+                {% endif %}
+                {% for error in field.errors %}
+                    <div class="text-danger small">{{ error }}</div>
+                {% endfor %}
+            </div>
+        {% endfor %}
+        <button type="submit" class="btn btn-primary">保存修改</button>
+        <a href="{% url 'semantic_qa:manage_entries' %}" class="btn btn-secondary ms-2">返回列表</a>
+    </form>
+</div>
+{% endblock %}

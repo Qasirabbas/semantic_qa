@@ -1,0 +1,827 @@
+<!-- semantic_qa/templates/semantic_qa/document_detail.html -->
+{% extends 'semantic_qa/base.html' %}
+{% load static %}
+{% load i18n %}
+
+{% block title %}文档详情 - {{ document.title }}{% endblock %}
+
+{% block extra_css %}
+<style>
+.document-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 2rem;
+    border-radius: 10px;
+    margin-bottom: 2rem;
+}
+
+.document-type-icon {
+    font-size: 3rem;
+    margin-right: 1rem;
+}
+
+.status-badge {
+    font-size: 1rem;
+    padding: 0.5rem 1rem;
+}
+
+.status-badge.completed {
+    background-color: #28a745;
+}
+
+.status-badge.processing {
+    background-color: #ffc107;
+}
+
+.status-badge.failed {
+    background-color: #dc3545;
+}
+
+.status-badge.pending {
+    background-color: #6c757d;
+}
+
+.metadata-card {
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.chunk-card {
+    border-left: 4px solid #007bff;
+    margin-bottom: 1rem;
+    transition: all 0.3s ease;
+}
+
+.chunk-card:hover {
+    transform: translateX(5px);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+}
+
+.extracted-text {
+    max-height: 400px;
+    overflow-y: auto;
+    background-color: #f8f9fa;
+    padding: 1rem;
+    border-radius: 8px;
+    font-family: monospace;
+    font-size: 0.9rem;
+    line-height: 1.6;
+}
+
+.processing-log {
+    background-color: #f8f9fa;
+    padding: 1rem;
+    border-radius: 8px;
+    font-family: monospace;
+    font-size: 0.85rem;
+    white-space: pre-wrap;
+}
+
+.job-timeline {
+    border-left: 3px solid #007bff;
+    padding-left: 1rem;
+    margin-left: 1rem;
+}
+
+.job-item {
+    margin-bottom: 1rem;
+    position: relative;
+}
+
+.job-item::before {
+    content: '';
+    position: absolute;
+    left: -1.5rem;
+    top: 0.5rem;
+    width: 10px;
+    height: 10px;
+    background-color: #007bff;
+    border-radius: 50%;
+}
+
+.job-item.completed::before {
+    background-color: #28a745;
+}
+
+.job-item.failed::before {
+    background-color: #dc3545;
+}
+
+.tab-content {
+    padding: 1.5rem 0;
+}
+
+.document-preview {
+    max-width: 100%;
+    border-radius: 8px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <!-- Back Button -->
+        <div class="mb-3">
+            <a href="{% url 'semantic_qa:manage_documents' %}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left me-2"></i>返回文档列表
+            </a>
+        </div>
+
+        <!-- Document Header -->
+        <div class="document-header">
+            <div class="row align-items-center">
+                <div class="col-md-8">
+                    <div class="d-flex align-items-center">
+                        {% if document.document_type == 'pdf' %}
+                            <i class="fas fa-file-pdf document-type-icon text-danger"></i>
+                        {% elif document.document_type == 'image' %}
+                            <i class="fas fa-image document-type-icon text-success"></i>
+                        {% elif document.document_type == 'link' %}
+                            <i class="fas fa-link document-type-icon text-info"></i>
+                        {% else %}
+                            <i class="fas fa-file document-type-icon"></i>
+                        {% endif %}
+                        
+                        <div>
+                            <h1 class="mb-2">{{ document.title }}</h1>
+                            <div class="mb-2">
+                                <span class="badge bg-light text-dark me-2">{{ document.get_document_type_display }}</span>
+                                {% if document.category %}
+                                <span class="badge bg-info me-2">{{ document.category }}</span>
+                                {% endif %}
+                                <span class="badge status-badge {{ document.processing_status }}">
+                                    {% if document.processing_status == 'completed' %}✓ 处理完成
+                                    {% elif document.processing_status == 'processing' %}⏳ 处理中
+                                    {% elif document.processing_status == 'failed' %}✗ 处理失败
+                                    {% elif document.processing_status == 'pending' %}⏸ 等待处理
+                                    {% else %}{{ document.processing_status }}
+                                    {% endif %}
+                                </span>
+                            </div>
+                            <p class="mb-0">
+                                <small>
+                                    <i class="fas fa-calendar me-1"></i>上传时间：{{ document.created_at|date:"Y-m-d H:i:s" }}
+                                    {% if document.updated_at != document.created_at %}
+                                    | <i class="fas fa-sync me-1"></i>更新时间：{{ document.updated_at|date:"Y-m-d H:i:s" }}
+                                    {% endif %}
+                                </small>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4 text-end">
+                    <div class="btn-group mb-2">
+                        {% if document.processing_status == 'failed' or document.processing_status == 'pending' %}
+                        <button class="btn btn-warning" onclick="reprocessDocument()">
+                            <i class="fas fa-redo me-1"></i>重新处理
+                        </button>
+                        {% endif %}
+                        
+                        {% if document.original_file %}
+                        <a href="{{ document.original_file.url }}" class="btn btn-light" target="_blank">
+                            <i class="fas fa-download me-1"></i>下载原文件
+                        </a>
+                        {% elif document.source_url %}
+                        <a href="{{ document.source_url }}" class="btn btn-light" target="_blank">
+                            <i class="fas fa-external-link-alt me-1"></i>访问原网页
+                        </a>
+                        {% endif %}
+                        
+                        <a href="{% url 'semantic_qa:delete_document' document.id %}" 
+                           class="btn btn-danger"
+                           onclick="return confirm('确定要删除这个文档吗？此操作不可撤销！')">
+                            <i class="fas fa-trash me-1"></i>删除
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Navigation Tabs -->
+        <ul class="nav nav-tabs" id="documentTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="overview-tab" data-bs-toggle="tab" data-bs-target="#overview" type="button" role="tab">
+                    <i class="fas fa-info-circle me-2"></i>概览
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="content-tab" data-bs-toggle="tab" data-bs-target="#content" type="button" role="tab">
+                    <i class="fas fa-file-alt me-2"></i>提取内容
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="chunks-tab" data-bs-toggle="tab" data-bs-target="#chunks" type="button" role="tab">
+                    <i class="fas fa-puzzle-piece me-2"></i>文本块 <span class="badge bg-secondary">{{ total_chunks }}</span>
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="processing-tab" data-bs-toggle="tab" data-bs-target="#processing" type="button" role="tab">
+                    <i class="fas fa-cogs me-2"></i>处理记录
+                </button>
+            </li>
+        </ul>
+
+        <!-- Tab Content -->
+        <div class="tab-content" id="documentTabContent">
+            <!-- Overview Tab -->
+            <div class="tab-pane fade show active" id="overview" role="tabpanel">
+                <div class="row">
+                    <!-- Document Info -->
+                    <div class="col-md-6">
+                        <div class="metadata-card">
+                            <h5><i class="fas fa-info-circle text-primary me-2"></i>文档信息</h5>
+                            <table class="table table-sm">
+                                <tr>
+                                    <th width="30%">标题</th>
+                                    <td>{{ document.title }}</td>
+                                </tr>
+                                <tr>
+                                    <th>类型</th>
+                                    <td>{{ document.get_document_type_display }}</td>
+                                </tr>
+                                <tr>
+                                    <th>分类</th>
+                                    <td>{{ document.category|default:"未分类" }}</td>
+                                </tr>
+                                <tr>
+                                    <th>状态</th>
+                                    <td>
+                                        <span class="badge status-badge {{ document.processing_status }}">
+                                            {% if document.processing_status == 'completed' %}处理完成
+                                            {% elif document.processing_status == 'processing' %}处理中
+                                            {% elif document.processing_status == 'failed' %}处理失败
+                                            {% elif document.processing_status == 'pending' %}等待处理
+                                            {% else %}{{ document.processing_status }}
+                                            {% endif %}
+                                        </span>
+                                    </td>
+                                </tr>
+                                {% if document.file_size %}
+                                <tr>
+                                    <th>文件大小</th>
+                                    <td>{{ document.file_size|filesizeformat }}</td>
+                                </tr>
+                                {% endif %}
+                                {% if document.page_count %}
+                                <tr>
+                                    <th>页数</th>
+                                    <td>{{ document.page_count }}</td>
+                                </tr>
+                                {% endif %}
+                                {% if document.language_detected %}
+                                <tr>
+                                    <th>检测语言</th>
+                                    <td>{{ document.language_detected|upper }}</td>
+                                </tr>
+                                {% endif %}
+                                {% if document.source_url %}
+                                <tr>
+                                    <th>源链接</th>
+                                    <td><a href="{{ document.source_url }}" target="_blank">{{ document.source_url|truncatechars:50 }}</a></td>
+                                </tr>
+                                {% endif %}
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Processing Stats -->
+                    <div class="col-md-6">
+                        <div class="metadata-card">
+                            <h5><i class="fas fa-chart-bar text-success me-2"></i>处理统计</h5>
+                            <table class="table table-sm">
+                                <tr>
+                                    <th width="30%">文本块数量</th>
+                                    <td>{{ total_chunks }}</td>
+                                </tr>
+                                <tr>
+                                    <th>提取文本长度</th>
+                                    <td>{{ document.extracted_text|length|default:0 }} 字符</td>
+                                </tr>
+                                <tr>
+                                    <th>标签</th>
+                                    <td>{{ document.tags|default:"无" }}</td>
+                                </tr>
+                                {% if document.ocr_confidence %}
+                                <tr>
+                                    <th>OCR置信度</th>
+                                    <td>{{ document.ocr_confidence|floatformat:2 }}</td>
+                                </tr>
+                                {% endif %}
+                                <tr>
+                                    <th>创建时间</th>
+                                    <td>{{ document.created_at|date:"Y-m-d H:i:s" }}</td>
+                                </tr>
+                                <tr>
+                                    <th>更新时间</th>
+                                    <td>{{ document.updated_at|date:"Y-m-d H:i:s" }}</td>
+                                </tr>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Document Preview -->
+                {% if document.document_type == 'image' and document.original_file %}
+                <div class="row">
+                    <div class="col-12">
+                        <div class="metadata-card">
+                            <h5><i class="fas fa-eye text-info me-2"></i>文档预览</h5>
+                            <div class="text-center">
+                                <img src="{{ document.original_file.url }}" 
+                                     alt="{{ document.title }}" 
+                                     class="document-preview"
+                                     style="max-height: 500px; cursor: pointer;"
+                                     onclick="openImageModal('{{ document.original_file.url }}', '{{ document.title }}')">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Related Queries -->
+                {% if related_queries %}
+                <div class="row">
+                    <div class="col-12">
+                        <div class="metadata-card">
+                            <h5><i class="fas fa-search text-warning me-2"></i>相关搜索</h5>
+                            <div class="list-group">
+                                {% for query in related_queries %}
+                                <div class="list-group-item">
+                                    <div class="d-flex w-100 justify-content-between">
+                                        <h6 class="mb-1">{{ query.query_text }}</h6>
+                                        <small>{{ query.created_at|timesince }}前</small>
+                                    </div>
+                                    <p class="mb-1">查询类型：{{ query.query_type }}</p>
+                                    <small>响应时间：{{ query.response_time|floatformat:3 }}秒</small>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Content Tab -->
+            <div class="tab-pane fade" id="content" role="tabpanel">
+                <div class="row">
+                    <div class="col-12">
+                        {% if document.extracted_text %}
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h5><i class="fas fa-file-alt text-primary me-2"></i>提取的文本内容</h5>
+                            <button class="btn btn-outline-secondary btn-sm" onclick="copyExtractedText()">
+                                <i class="fas fa-copy me-1"></i>复制文本
+                            </button>
+                        </div>
+                        <div class="extracted-text" id="extractedText">{{ document.extracted_text }}</div>
+                        {% else %}
+                        <div class="text-center py-5">
+                            <i class="fas fa-file-alt fa-3x text-muted mb-3"></i>
+                            <h5>暂无提取的文本内容</h5>
+                            <p class="text-muted">
+                                {% if document.processing_status == 'pending' %}
+                                文档正在等待处理
+                                {% elif document.processing_status == 'processing' %}
+                                文档正在处理中
+                                {% elif document.processing_status == 'failed' %}
+                                文档处理失败
+                                {% else %}
+                                文档可能不包含可提取的文本
+                                {% endif %}
+                            </p>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Chunks Tab -->
+            <div class="tab-pane fade" id="chunks" role="tabpanel">
+                <div class="row">
+                    <div class="col-12">
+                        {% if chunks %}
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h5><i class="fas fa-puzzle-piece text-success me-2"></i>文本块 ({{ total_chunks }})</h5>
+                            <div class="btn-group">
+                                <button class="btn btn-outline-primary btn-sm" onclick="regenerateChunks()">
+                                    <i class="fas fa-sync me-1"></i>重新生成块
+                                </button>
+                                <button class="btn btn-outline-secondary btn-sm" onclick="exportChunks()">
+                                    <i class="fas fa-download me-1"></i>导出块
+                                </button>
+                            </div>
+                        </div>
+
+                        {% for chunk in chunks %}
+                        <div class="card chunk-card">
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-10">
+                                        <div class="d-flex justify-content-between align-items-start mb-2">
+                                            <h6 class="card-title mb-0">
+                                                块 #{{ chunk.chunk_index|add:1 }}
+                                                {% if chunk.section_title %}
+                                                - {{ chunk.section_title }}
+                                                {% endif %}
+                                            </h6>
+                                            <div>
+                                                {% if chunk.page_number %}
+                                                <span class="badge bg-info">第{{ chunk.page_number }}页</span>
+                                                {% endif %}
+                                                <span class="badge bg-secondary">{{ chunk.chunk_size }} 字符</span>
+                                            </div>
+                                        </div>
+                                        <p class="card-text">{{ chunk.text|truncatechars:300 }}</p>
+                                        {% if chunk.keywords %}
+                                        <div class="mb-2">
+                                            <small class="text-muted">
+                                                <strong>关键词：</strong>{{ chunk.keywords }}
+                                            </small>
+                                        </div>
+                                        {% endif %}
+                                    </div>
+                                    <div class="col-md-2 text-end">
+                                        <div class="btn-group-vertical">
+                                            <button class="btn btn-sm btn-outline-info mb-1" 
+                                                    onclick="viewFullChunk({{ chunk.id }})">
+                                                <i class="fas fa-eye"></i>
+                                            </button>
+                                            <button class="btn btn-sm btn-outline-secondary mb-1" 
+                                                    onclick="copyChunk({{ chunk.id }})">
+                                                <i class="fas fa-copy"></i>
+                                            </button>
+                                            <button class="btn btn-sm btn-outline-primary" 
+                                                    onclick="editChunk({{ chunk.id }})">
+                                                <i class="fas fa-edit"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+
+                        <!-- Pagination for chunks -->
+                        {% if chunks.has_other_pages %}
+                        <nav aria-label="文本块分页">
+                            <ul class="pagination justify-content-center">
+                                {% if chunks.has_previous %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ chunks.previous_page_number }}#chunks-tab">
+                                        <i class="fas fa-chevron-left"></i>
+                                    </a>
+                                </li>
+                                {% endif %}
+
+                                {% for page_num in chunks.paginator.page_range %}
+                                {% if page_num == chunks.number %}
+                                <li class="page-item active">
+                                    <span class="page-link">{{ page_num }}</span>
+                                </li>
+                                {% else %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ page_num }}#chunks-tab">{{ page_num }}</a>
+                                </li>
+                                {% endif %}
+                                {% endfor %}
+
+                                {% if chunks.has_next %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ chunks.next_page_number }}#chunks-tab">
+                                        <i class="fas fa-chevron-right"></i>
+                                    </a>
+                                </li>
+                                {% endif %}
+                            </ul>
+                        </nav>
+                        {% endif %}
+
+                        {% else %}
+                        <div class="text-center py-5">
+                            <i class="fas fa-puzzle-piece fa-3x text-muted mb-3"></i>
+                            <h5>暂无文本块</h5>
+                            <p class="text-muted">
+                                {% if document.processing_status == 'completed' %}
+                                文档已处理完成，但没有生成文本块
+                                {% else %}
+                                文档处理完成后将自动生成文本块
+                                {% endif %}
+                            </p>
+                            {% if document.processing_status == 'completed' %}
+                            <button class="btn btn-primary" onclick="regenerateChunks()">
+                                <i class="fas fa-plus me-2"></i>生成文本块
+                            </button>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Processing Tab -->
+            <div class="tab-pane fade" id="processing" role="tabpanel">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h5><i class="fas fa-cogs text-info me-2"></i>处理记录</h5>
+                        {% if processing_jobs %}
+                        <div class="job-timeline">
+                            {% for job in processing_jobs %}
+                            <div class="job-item {{ job.status }}">
+                                <div class="card">
+                                    <div class="card-body">
+                                        <div class="d-flex justify-content-between align-items-start">
+                                            <div>
+                                                <h6 class="card-title">{{ job.get_job_type_display }}</h6>
+                                                <p class="card-text">
+                                                    状态：
+                                                    <span class="badge 
+                                                        {% if job.status == 'completed' %}bg-success
+                                                        {% elif job.status == 'failed' %}bg-danger
+                                                        {% elif job.status == 'running' %}bg-warning
+                                                        {% else %}bg-secondary
+                                                        {% endif %}">
+                                                        {{ job.get_status_display }}
+                                                    </span>
+                                                </p>
+                                                {% if job.current_step %}
+                                                <p class="card-text">
+                                                    <small class="text-muted">{{ job.current_step }}</small>
+                                                </p>
+                                                {% endif %}
+                                            </div>
+                                            <div class="text-end">
+                                                <small class="text-muted">{{ job.created_at|date:"m-d H:i" }}</small>
+                                                {% if job.progress_percent > 0 %}
+                                                <div class="progress mt-1" style="width: 100px; height: 6px;">
+                                                    <div class="progress-bar" style="width: {{ job.progress_percent }}%"></div>
+                                                </div>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                        
+                                        {% if job.success_count > 0 or job.error_count > 0 %}
+                                        <div class="mt-2">
+                                            <small>
+                                                {% if job.success_count > 0 %}
+                                                <span class="text-success">✓ {{ job.success_count }} 成功</span>
+                                                {% endif %}
+                                                {% if job.error_count > 0 %}
+                                                <span class="text-danger">✗ {{ job.error_count }} 失败</span>
+                                                {% endif %}
+                                            </small>
+                                        </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% else %}
+                        <div class="text-center py-3">
+                            <i class="fas fa-history fa-2x text-muted mb-2"></i>
+                            <p class="text-muted">暂无处理记录</p>
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="col-md-6">
+                        <h5><i class="fas fa-list-alt text-warning me-2"></i>处理日志</h5>
+                        {% if document.processing_log %}
+                        <div class="processing-log">{{ document.processing_log }}</div>
+                        {% else %}
+                        <div class="text-center py-3">
+                            <i class="fas fa-file-alt fa-2x text-muted mb-2"></i>
+                            <p class="text-muted">暂无处理日志</p>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Image Modal -->
+<div class="modal fade" id="imageModal" tabindex="-1">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="imageModalTitle">图片预览</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body text-center">
+                <img id="modalImage" src="" alt="" class="img-fluid">
+            </div>
+            <div class="modal-footer">
+                <a id="modalImageLink" href="" target="_blank" class="btn btn-primary">
+                    <i class="fas fa-external-link-alt me-1"></i>在新窗口打开
+                </a>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Chunk Modal -->
+<div class="modal fade" id="chunkModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="chunkModalTitle">文本块详情</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="chunkContent"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="copyModalContent()">
+                    <i class="fas fa-copy me-1"></i>复制内容
+                </button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Handle tab switching with URL hash
+    const hash = window.location.hash;
+    if (hash) {
+        const tabButton = document.querySelector(`button[data-bs-target="${hash}"]`);
+        if (tabButton) {
+            const tab = new bootstrap.Tab(tabButton);
+            tab.show();
+        }
+    }
+    
+    // Update URL hash when tab changes
+    document.querySelectorAll('button[data-bs-toggle="tab"]').forEach(button => {
+        button.addEventListener('shown.bs.tab', function(e) {
+            const target = e.target.getAttribute('data-bs-target');
+            window.location.hash = target;
+        });
+    });
+});
+
+// Reprocess document
+function reprocessDocument() {
+    if (confirm('确定要重新处理这个文档吗？')) {
+        fetch(`/api/process-document/{{ document.id }}/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': getCsrfToken(),
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showToast('文档重新处理已开始，请稍后刷新页面查看结果', 'success');
+                setTimeout(() => location.reload(), 3000);
+            } else {
+                showToast('重新处理失败: ' + (data.error || '未知错误'), 'error');
+            }
+        })
+        .catch(error => {
+            showToast('重新处理失败: ' + error.message, 'error');
+        });
+    }
+}
+
+// Copy extracted text
+function copyExtractedText() {
+    const text = document.getElementById('extractedText').textContent;
+    copyToClipboard(text);
+    showToast('已复制提取的文本到剪贴板', 'success');
+}
+
+// Regenerate chunks
+function regenerateChunks() {
+    if (confirm('确定要重新生成文本块吗？这将删除现有的文本块。')) {
+        // Implementation for regenerating chunks
+        showToast('正在重新生成文本块...', 'info');
+        // Here you would make an API call to regenerate chunks
+    }
+}
+
+// Export chunks
+function exportChunks() {
+    const chunks = [];
+    document.querySelectorAll('.chunk-card').forEach((card, index) => {
+        const text = card.querySelector('.card-text').textContent;
+        chunks.push(`=== 块 ${index + 1} ===\n${text}\n`);
+    });
+    
+    const content = chunks.join('\n');
+    const blob = new Blob([content], { type: 'text/plain' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `{{ document.title }}_chunks.txt`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+    
+    showToast('文本块已导出', 'success');
+}
+
+// View full chunk
+function viewFullChunk(chunkId) {
+    // Get chunk data - in a real implementation, this would be an API call
+    const chunkCard = document.querySelector(`button[onclick="viewFullChunk(${chunkId})"]`).closest('.chunk-card');
+    const chunkText = chunkCard.querySelector('.card-text').textContent;
+    const chunkTitle = chunkCard.querySelector('.card-title').textContent;
+    
+    document.getElementById('chunkModalTitle').textContent = chunkTitle;
+    document.getElementById('chunkContent').innerHTML = `<pre class="text-wrap">${chunkText}</pre>`;
+    
+    const modal = new bootstrap.Modal(document.getElementById('chunkModal'));
+    modal.show();
+}
+
+// Copy chunk
+function copyChunk(chunkId) {
+    const chunkCard = document.querySelector(`button[onclick="copyChunk(${chunkId})"]`).closest('.chunk-card');
+    const chunkText = chunkCard.querySelector('.card-text').textContent;
+    copyToClipboard(chunkText);
+    showToast('文本块已复制到剪贴板', 'success');
+}
+
+// Edit chunk
+function editChunk(chunkId) {
+    showToast('编辑功能开发中...', 'info');
+    // Implementation for editing chunks
+}
+
+// Copy modal content
+function copyModalContent() {
+    const content = document.getElementById('chunkContent').textContent;
+    copyToClipboard(content);
+    showToast('内容已复制到剪贴板', 'success');
+}
+
+// Open image modal
+function openImageModal(imageSrc, title) {
+    const modal = new bootstrap.Modal(document.getElementById('imageModal'));
+    const modalImage = document.getElementById('modalImage');
+    const modalTitle = document.getElementById('imageModalTitle');
+    const modalLink = document.getElementById('modalImageLink');
+    
+    modalImage.src = imageSrc;
+    modalImage.alt = title;
+    modalTitle.textContent = title + ' - 图片预览';
+    modalLink.href = imageSrc;
+    
+    modal.show();
+}
+
+// Utility functions
+function copyToClipboard(text) {
+    if (navigator.clipboard) {
+        navigator.clipboard.writeText(text);
+    } else {
+        const textArea = document.createElement('textarea');
+        textArea.value = text;
+        textArea.style.position = 'fixed';
+        textArea.style.opacity = '0';
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+    }
+}
+
+function getCsrfToken() {
+    const token = document.querySelector('[name=csrfmiddlewaretoken]');
+    return token ? token.value : '';
+}
+
+function showToast(message, type = 'info') {
+    const toast = document.createElement('div');
+    toast.className = `alert alert-${type === 'error' ? 'danger' : type} position-fixed fade show`;
+    toast.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 250px;';
+    toast.innerHTML = `
+        <div class="d-flex align-items-center">
+            <i class="fas fa-${type === 'success' ? 'check' : type === 'error' ? 'times' : 'info'}-circle me-2"></i>
+            ${message}
+            <button type="button" class="btn-close ms-auto" onclick="this.closest('.alert').remove()"></button>
+        </div>
+    `;
+    
+    document.body.appendChild(toast);
+    
+    setTimeout(() => {
+        if (toast.parentNode) {
+            toast.remove();
+        }
+    }, 5000);
+}
+</script>
+{% endblock %}

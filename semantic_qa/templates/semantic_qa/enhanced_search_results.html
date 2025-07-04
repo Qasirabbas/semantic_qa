@@ -1,0 +1,1178 @@
+<!-- semantic_qa/templates/semantic_qa/enhanced_search_results.html -->
+{% extends 'semantic_qa/base.html' %}
+{% load static %}
+{% load i18n %}
+
+{% block title %}搜索结果 - {{ query }}{% endblock %}
+
+{% block extra_css %}
+<style>
+.result-card {
+    transition: transform 0.2s, box-shadow 0.2s;
+    border-left: 4px solid #007bff;
+}
+.result-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+}
+.result-card.high-relevance {
+    border-left-color: #28a745;
+}
+.result-card.medium-relevance {
+    border-left-color: #ffc107;
+}
+.result-card.low-relevance {
+    border-left-color: #6c757d;
+}
+.image-container {
+    max-height: 200px;
+    overflow: hidden;
+    border-radius: 8px;
+}
+.image-container img {
+    width: 100%;
+    height: auto;
+    object-fit: cover;
+}
+.relevance-score {
+    font-size: 0.85em;
+    font-weight: 600;
+}
+.match-type-badge {
+    font-size: 0.75em;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+.search-meta {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-radius: 10px;
+    padding: 20px;
+    margin-bottom: 20px;
+}
+.score-bar {
+    height: 4px;
+    border-radius: 2px;
+    margin-top: 5px;
+    background: #e9ecef;
+}
+.score-fill {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.3s ease;
+}
+.highlight {
+    background-color: #fff3cd;
+    padding: 2px 4px;
+    border-radius: 3px;
+    font-weight: 500;
+}
+.rag-answer {
+    background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+    color: white;
+    border-radius: 10px;
+    padding: 20px;
+    margin-bottom: 20px;
+}
+.sku-badge {
+    font-family: 'Courier New', monospace;
+    font-weight: bold;
+    letter-spacing: 1px;
+}
+.answer-text {
+    line-height: 1.6;
+    color: #495057;
+}
+.document-preview {
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    padding: 15px;
+}
+.content-section {
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 15px;
+    margin: 10px 0;
+}
+.search-filters {
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 15px;
+    margin-bottom: 20px;
+}
+.filter-chip {
+    display: inline-block;
+    background: #e9ecef;
+    color: #495057;
+    padding: 5px 10px;
+    border-radius: 15px;
+    font-size: 0.8em;
+    margin: 2px;
+}
+.filter-chip.active {
+    background: #007bff;
+    color: white;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <!-- Enhanced Search Header -->
+        <div class="search-meta">
+            <div class="row align-items-center">
+                <div class="col-md-8">
+                    <h2 class="mb-2">
+                        <i class="fas fa-search me-2"></i>搜索结果
+                    </h2>
+                    <p class="mb-1">
+                        <strong>查询:</strong> "{{ query }}"
+                        {% if results.total_results %}
+                        | <strong>{{ results.total_results }}</strong> 个结果 
+                        | <strong>{{ results.response_time|floatformat:3 }}s</strong>
+                        | 搜索类型: <span class="badge bg-light text-dark">{{ results.query_type|title }}</span>
+                        {% endif %}
+                    </p>
+                    {% if results.processed_query != query %}
+                    <small class="text-light">
+                        <i class="fas fa-cog me-1"></i>处理后的查询: "{{ results.processed_query }}"
+                    </small>
+                    {% endif %}
+                </div>
+                <div class="col-md-4 text-end">
+                    <a href="{% url 'semantic_qa:index' %}" class="btn btn-light">
+                        <i class="fas fa-plus me-2"></i>新搜索
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- RAG Generated Answer -->
+        {% if results.generated_answer %}
+        <div class="rag-answer">
+            <h5 class="mb-3">
+                <i class="fas fa-robot me-2"></i>AI 生成的综合答案
+            </h5>
+            <div class="generated-answer">
+                {{ results.generated_answer|linebreaks }}
+            </div>
+            <small class="text-light">
+                <i class="fas fa-info-circle me-1"></i>
+                此答案基于检索到的相关内容通过 ChatGLM 生成
+            </small>
+        </div>
+        {% endif %}
+
+        <!-- Search Again Form -->
+        <div class="card mb-4">
+            <div class="card-body">
+                <form id="searchForm" method="get" action="/en/search/">
+                    <div class="row align-items-end">
+                        <div class="col-md-4">
+                            <label for="searchQuery" class="form-label">搜索查询</label>
+                            <input type="text" 
+                                   class="form-control" 
+                                   id="searchQuery"
+                                   name="q" 
+                                   value="{{ query }}"
+                                   placeholder="优化您的搜索...">
+                        </div>
+                        <div class="col-md-2">
+                            <label for="languageSelect" class="form-label">语言</label>
+                            <select class="form-select" id="languageSelect" name="lang">
+                                <option value="en" {% if language == 'en' %}selected{% endif %}>English</option>
+                                <option value="zh" {% if language == 'zh' %}selected{% endif %}>中文</option>
+                                <option value="es" {% if language == 'es' %}selected{% endif %}>Español</option>
+                                <option value="fr" {% if language == 'fr' %}selected{% endif %}>Français</option>
+                                <option value="de" {% if language == 'de' %}selected{% endif %}>Deutsch</option>
+                                <option value="ja" {% if language == 'ja' %}selected{% endif %}>日本語</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">内容类型</label>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="search_qa" 
+                                       id="search_qa" {% if search_qa_entries %}checked{% endif %}>
+                                <label class="form-check-label" for="search_qa">
+                                    问答数据库
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="search_docs" 
+                                       id="search_docs" {% if search_documents %}checked{% endif %}>
+                                <label class="form-check-label" for="search_docs">
+                                    文档内容
+                                </label>
+                            </div>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">文档类型</label>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="doc_types" value="pdf"
+                                       {% if 'pdf' in document_types %}checked{% endif %}>
+                                <label class="form-check-label">PDF</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="doc_types" value="image"
+                                       {% if 'image' in document_types %}checked{% endif %}>
+                                <label class="form-check-label">图片</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="doc_types" value="link"
+                                       {% if 'link' in document_types %}checked{% endif %}>
+                                <label class="form-check-label">网页</label>
+                            </div>
+                        </div>
+                        <div class="col-md-2">
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="checkbox" name="use_rag" 
+                                       id="use_rag" {% if use_rag %}checked{% endif %}>
+                                <label class="form-check-label" for="use_rag">
+                                    生成 AI 答案
+                                </label>
+                            </div>
+                            <button type="submit" class="btn btn-primary w-100">
+                                <i class="fas fa-search me-1"></i>搜索
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        {% if formatted_results %}
+            <!-- Results Summary -->
+            <div class="row mb-3">
+                <div class="col-md-8">
+                    <p class="text-muted mb-0">
+                        <i class="fas fa-info-circle me-1"></i>
+                        显示所有相关结果，按相似度排序。使用增强语义搜索和文档检索。
+                    </p>
+                    <!-- Search Type Filters -->
+                    <div class="mt-2">
+                        <span class="filter-chip active">所有结果 ({{ formatted_results|length }})</span>
+                        <span class="filter-chip" onclick="filterByType('qa_entry')">问答条目</span>
+                        <span class="filter-chip" onclick="filterByType('document_chunk')">文档片段</span>
+                        <span class="filter-chip" onclick="filterByRelevance('high')">高相关性</span>
+                        <span class="filter-chip" onclick="filterByRelevance('medium')">中等相关性</span>
+                    </div>
+                </div>
+                <div class="col-md-4 text-end">
+                    <div class="btn-group" role="group">
+                        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="expandAllImages()">
+                            <i class="fas fa-images me-1"></i>显示所有图片
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="copyAllResults()">
+                            <i class="fas fa-copy me-1"></i>复制所有结果
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-info" onclick="exportResults()">
+                            <i class="fas fa-download me-1"></i>导出结果
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Results Container -->
+            <div id="resultsContainer">
+                {% for result in formatted_results %}
+                {% with relevance=result.relevance_score %}
+                <div class="card result-card mb-4 
+                    {% if relevance >= 0.7 %}high-relevance
+                    {% elif relevance >= 0.3 %}medium-relevance  
+                    {% else %}low-relevance{% endif %}"
+                    data-type="{{ result.type }}"
+                    data-relevance="{{ result.relevance_level }}">
+                    <div class="card-body">
+                        <div class="row">
+                            <!-- Text Content -->
+                            <div class="col-md-{% if result.has_image or result.type == 'document_chunk' %}8{% else %}12{% endif %}">
+                                <!-- Header with enhanced badges -->
+                                <div class="d-flex justify-content-between align-items-start mb-3">
+                                    <div class="flex-grow-1">
+                                        <h5 class="card-title mb-2">
+                                            {% if result.type == 'qa_entry' %}
+                                                <span class="badge bg-primary me-2 sku-badge">{{ result.sku }}</span>
+                                                {{ result.question }}
+                                            {% elif result.type == 'document_chunk' %}
+                                                <span class="badge bg-info me-2">
+                                                    <i class="fas fa-{% if result.document_type == 'pdf' %}file-pdf{% elif result.document_type == 'image' %}image{% else %}link{% endif %} me-1"></i>
+                                                    {{ result.document_title|truncatechars:40 }}
+                                                </span>
+                                            {% endif %}
+                                        </h5>
+                                        <div class="mb-2">
+                                            <!-- Match type badge with enhanced styling -->
+                                            {% if result.match_type == 'exact_sku' %}
+                                                <span class="badge bg-success me-1 match-type-badge">
+                                                    <i class="fas fa-bullseye me-1"></i>精确SKU匹配
+                                                </span>
+                                            {% elif result.match_type == 'semantic' %}
+                                                <span class="badge bg-info me-1 match-type-badge">
+                                                    <i class="fas fa-brain me-1"></i>语义匹配
+                                                </span>
+                                            {% elif result.match_type == 'keyword' %}
+                                                <span class="badge bg-warning me-1 match-type-badge">
+                                                    <i class="fas fa-key me-1"></i>关键词匹配
+                                                </span>
+                                            {% else %}
+                                                <span class="badge bg-secondary me-1 match-type-badge">
+                                                    <i class="fas fa-search me-1"></i>{{ result.match_type|title }}
+                                                </span>
+                                            {% endif %}
+                                            
+                                            <!-- Category badge -->
+                                            <span class="badge bg-outline-dark me-1">
+                                                <i class="fas fa-tag me-1"></i>{{ result.category_display|default:"通用" }}
+                                            </span>
+                                            
+                                            <!-- Enhanced relevance score -->
+                                            {% if relevance >= 0.7 %}
+                                                <span class="badge bg-success relevance-score">
+                                                    <i class="fas fa-star me-1"></i>{{ result.display_score }} 高相关
+                                                </span>
+                                            {% elif relevance >= 0.3 %}
+                                                <span class="badge bg-warning relevance-score">
+                                                    <i class="fas fa-star-half-alt me-1"></i>{{ result.display_score }} 中等相关
+                                                </span>
+                                            {% else %}
+                                                <span class="badge bg-secondary relevance-score">
+                                                    <i class="far fa-star me-1"></i>{{ result.display_score }} 可能相关
+                                                </span>
+                                            {% endif %}
+                                        </div>
+                                        
+                                        <!-- Visual score bar -->
+                                        <div class="score-bar">
+                                            <div class="score-fill {% if relevance >= 0.7 %}bg-success{% elif relevance >= 0.5 %}bg-info{% elif relevance >= 0.3 %}bg-warning{% else %}bg-secondary{% endif %}" 
+                                                >
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Actions dropdown -->
+                                    <div class="dropdown ms-2">
+                                        <button class="btn btn-sm btn-outline-secondary dropdown-toggle" 
+                                                type="button" data-bs-toggle="dropdown">
+                                            <i class="fas fa-ellipsis-v"></i>
+                                        </button>
+                                        <ul class="dropdown-menu">
+                                            <li>
+                                                <a class="dropdown-item copy-result" href="#" 
+                                                   data-result-id="{{ result.id }}">
+                                                    <i class="fas fa-copy me-2"></i>复制内容
+                                                </a>
+                                            </li>
+                                            {% if result.type == 'qa_entry' and result.image_link %}
+                                            <li>
+                                                <a class="dropdown-item" href="{{ result.image_link }}" target="_blank">
+                                                    <i class="fas fa-external-link-alt me-2"></i>在新窗口打开图片
+                                                </a>
+                                            </li>
+                                            {% endif %}
+                                            <li><hr class="dropdown-divider"></li>
+                                            <li>
+                                                <a class="dropdown-item" href="#" onclick="shareResult('{{ result.id }}')">
+                                                    <i class="fas fa-share me-2"></i>分享结果
+                                                </a>
+                                            </li>
+                                        </ul>
+                                    </div>
+                                </div>
+
+                                <!-- Content with enhanced styling -->
+                                <div class="content-section">
+                                    {% if result.type == 'qa_entry' %}
+                                        <h6 class="text-muted mb-2">
+                                            <i class="fas fa-comment-alt me-1"></i>答案：
+                                        </h6>
+                                        <div class="answer-text">{{ result.answer }}</div>
+                                    {% elif result.type == 'document_chunk' %}
+                                        <h6 class="text-muted mb-2">
+                                            <i class="fas fa-file-text me-1"></i>文档内容：
+                                        </h6>
+                                        <div class="text-content">{{ result.text_content|truncatechars:500 }}</div>
+                                        {% if result.page_number %}
+                                        <small class="text-muted d-block mt-2">
+                                            <i class="fas fa-map-pin me-1"></i>页面 {{ result.page_number }}
+                                        </small>
+                                        {% endif %}
+                                    {% endif %}
+                                </div>
+
+                                <!-- Action buttons -->
+                                <div class="d-flex flex-wrap gap-2">
+                                    {% if result.type == 'qa_entry' and result.image_link %}
+                                    <button class="btn btn-sm btn-outline-info" 
+                                            onclick="toggleImage('{{ result.id }}')">
+                                        <i class="fas fa-image me-1"></i>切换图片显示
+                                    </button>
+                                    {% endif %}
+                                    <button class="btn btn-sm btn-outline-secondary copy-result" 
+                                            data-result-id="{{ result.id }}">
+                                        <i class="fas fa-copy me-1"></i>复制
+                                    </button>
+                                    {% if result.type == 'qa_entry' %}
+                                    <button class="btn btn-sm btn-outline-primary" 
+                                            onclick="searchSimilar('{{ result.sku }}')">
+                                        <i class="fas fa-search-plus me-1"></i>搜索相似
+                                    </button>
+                                    {% elif result.type == 'document_chunk' %}
+                                    <a href="{% url 'semantic_qa:document_detail' result.document_id %}" 
+                                       class="btn btn-sm btn-outline-primary">
+                                        <i class="fas fa-file me-1"></i>查看文档
+                                    </a>
+                                    {% endif %}
+                                </div>
+                            </div>
+
+                            <!-- Enhanced Image/Preview Section -->
+                            {% if result.type == 'qa_entry' and result.image_link %}
+                            <div class="col-md-4">
+                                <div class="image-container" id="image-container-{{ result.id }}">
+                                    <img src="{% url 'semantic_qa:image_proxy' result.image_link %}" 
+                                        alt="图片 {{ result.sku }}"
+                                        class="img-fluid rounded"
+                                        onerror="showImageError('{{ result.id }}', '{{ result.image_link|escapejs }}')"
+                                        loading="lazy"
+                                        style="cursor: pointer;"
+                                        onclick="openImageModal('{{ result.image_link|escapejs }}', '{{ result.sku|escapejs }}')">
+                                    <div id="image-error-{{ result.id }}" style="display: none;" 
+                                         class="text-center p-3 bg-light rounded">
+                                        <i class="fas fa-image text-muted fa-2x mb-2"></i>
+                                        <p class="text-muted small mb-2">图片暂时无法加载</p>
+                                        <a href="{{ result.image_link }}" target="_blank" 
+                                           class="btn btn-sm btn-outline-primary">
+                                            <i class="fas fa-external-link-alt me-1"></i>在新窗口打开
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                            {% elif result.type == 'document_chunk' %}
+                            <div class="col-md-4">
+                                <div class="document-preview">
+                                    <div class="text-center">
+                                        <i class="fas fa-{% if result.document_type == 'pdf' %}file-pdf text-danger{% elif result.document_type == 'image' %}image text-success{% else %}link text-info{% endif %} fa-3x mb-2"></i>
+                                        <h6>{{ result.document_title }}</h6>
+                                        <small class="text-muted">{{ result.document_type|upper }} 文档</small>
+                                        {% if result.context_before or result.context_after %}
+                                        <hr>
+                                        <small class="text-muted">
+                                            <strong>上下文：</strong><br>
+                                            {% if result.context_before %}{{ result.context_before|truncatechars:50 }}{% endif %}
+                                            <strong>[当前片段]</strong>
+                                            {% if result.context_after %}{{ result.context_after|truncatechars:50 }}{% endif %}
+                                        </small>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Hidden content for copying -->
+                        <div id="result-{{ result.id }}" {% if result.has_image and result.image_link %}data-image-link="{{ result.image_link }}"{% endif %} style="display: none;">
+                            {% if result.type == 'qa_entry' %}
+SKU: {{ result.sku }}
+问题: {{ result.question }}
+答案: {{ result.answer }}
+相关度: {{ result.display_score }}
+匹配类型: {{ result.match_type }}
+分类: {{ result.category_display|default:"通用" }}
+{% if result.image_link %}图片: {{ result.image_link }}{% endif %}
+                            {% elif result.type == 'document_chunk' %}
+文档: {{ result.document_title }}
+类型: {{ result.document_type|upper }}
+内容: {{ result.text_content }}
+相关度: {{ result.display_score }}
+匹配类型: {{ result.match_type }}
+{% if result.page_number %}页面: {{ result.page_number }}{% endif %}
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endwith %}
+                {% endfor %}
+            </div>
+
+            <!-- Pagination -->
+            {% if page_obj.has_other_pages %}
+            <nav aria-label="搜索结果分页" class="mt-4">
+                <ul class="pagination justify-content-center">
+                    {% if page_obj.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link" href="?q={{ query }}&lang={{ language }}&use_rag={{ use_rag }}&search_qa={{ search_qa_entries }}&search_docs={{ search_documents }}&page={{ page_obj.previous_page_number }}{% for doc_type in document_types %}&doc_types={{ doc_type }}{% endfor %}">
+                            <i class="fas fa-chevron-left"></i> 上一页
+                        </a>
+                    </li>
+                    {% endif %}
+
+                    {% for page_num in page_obj.paginator.page_range %}
+                    {% if page_num == page_obj.number %}
+                    <li class="page-item active">
+                        <span class="page-link">{{ page_num }}</span>
+                    </li>
+                    {% else %}
+                    <li class="page-item">
+                        <a class="page-link" href="?q={{ query }}&lang={{ language }}&use_rag={{ use_rag }}&search_qa={{ search_qa_entries }}&search_docs={{ search_documents }}&page={{ page_num }}{% for doc_type in document_types %}&doc_types={{ doc_type }}{% endfor %}">
+                            {{ page_num }}
+                        </a>
+                    </li>
+                    {% endif %}
+                    {% endfor %}
+
+                    {% if page_obj.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="?q={{ query }}&lang={{ language }}&use_rag={{ use_rag }}&search_qa={{ search_qa_entries }}&search_docs={{ search_documents }}&page={{ page_obj.next_page_number }}{% for doc_type in document_types %}&doc_types={{ doc_type }}{% endfor %}">
+                            下一页 <i class="fas fa-chevron-right"></i>
+                        </a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </nav>
+            {% endif %}
+
+        {% else %}
+            <!-- Enhanced No Results -->
+            <div class="text-center py-5">
+                <div class="mb-4">
+                    <i class="fas fa-search fa-4x text-muted mb-3"></i>
+                    <h4>未找到匹配结果</h4>
+                    <p class="text-muted">
+                        很抱歉，没有找到与查询 <strong>"{{ query }}"</strong> 匹配的结果。
+                    </p>
+                </div>
+                
+                <div class="row justify-content-center">
+                    <div class="col-md-8">
+                        <div class="card bg-light">
+                            <div class="card-body">
+                                <h6><i class="fas fa-lightbulb text-warning me-2"></i>搜索建议：</h6>
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <ul class="list-unstyled text-start">
+                                            <li>• 尝试不同的关键词组合</li>
+                                            <li>• 检查SKU或产品名称的拼写</li>
+                                            <li>• 使用更通用的术语</li>
+                                            <li>• 尝试启用文档搜索</li>
+                                        </ul>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <ul class="list-unstyled text-start">
+                                            <li>• 尝试用中文或英文搜索</li>
+                                            <li>• 减少搜索词的数量</li>
+                                            <li>• 搜索产品类别而非具体型号</li>
+                                            <li>• 启用 AI 生成答案功能</li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="mt-4">
+                    <a href="{% url 'semantic_qa:index' %}" class="btn btn-primary me-2">
+                        <i class="fas fa-home me-2"></i>返回首页
+                    </a>
+                    <a href="{% url 'semantic_qa:manage_entries' %}" class="btn btn-outline-secondary me-2">
+                        <i class="fas fa-database me-2"></i>查看所有条目
+                    </a>
+                    <a href="{% url 'semantic_qa:upload_document_page' %}" class="btn btn-outline-success">
+                        <i class="fas fa-upload me-2"></i>上传文档
+                    </a>
+                </div>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Image Modal -->
+<div class="modal fade" id="imageModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="imageModalTitle">图片预览</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body text-center">
+                <img id="modalImage" src="" alt="" class="img-fluid">
+            </div>
+            <div class="modal-footer">
+                <a id="modalImageLink" href="" target="_blank" class="btn btn-primary">
+                    <i class="fas fa-external-link-alt me-1"></i>在新窗口打开
+                </a>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Enhanced JavaScript functionality
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize tooltips
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl);
+    });
+    
+    // Initialize result counters
+    updateResultCounters();
+    
+    // Setup filter functionality
+    setupFilters();
+});
+
+function setupFilters() {
+    // Filter chips functionality
+    document.querySelectorAll('.filter-chip').forEach(chip => {
+        chip.addEventListener('click', function() {
+            // Remove active class from all chips
+            document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+            this.classList.add('active');
+        });
+    });
+}
+
+function updateResultCounters() {
+    const qaCount = document.querySelectorAll('[data-type="qa_entry"]').length;
+    const docCount = document.querySelectorAll('[data-type="document_chunk"]').length;
+    const highRelevanceCount = document.querySelectorAll('[data-relevance="high"]').length;
+    const mediumRelevanceCount = document.querySelectorAll('[data-relevance="medium"]').length;
+    
+    // Update filter chip text with counts
+    const chips = document.querySelectorAll('.filter-chip');
+    chips.forEach(chip => {
+        const text = chip.textContent;
+        if (text.includes('问答条目')) {
+            chip.textContent = `问答条目 (${qaCount})`;
+            chip.onclick = () => filterByType('qa_entry');
+        } else if (text.includes('文档片段')) {
+            chip.textContent = `文档片段 (${docCount})`;
+            chip.onclick = () => filterByType('document_chunk');
+        } else if (text.includes('高相关性')) {
+            chip.textContent = `高相关性 (${highRelevanceCount})`;
+            chip.onclick = () => filterByRelevance('high');
+        } else if (text.includes('中等相关性')) {
+            chip.textContent = `中等相关性 (${mediumRelevanceCount})`;
+            chip.onclick = () => filterByRelevance('medium');
+        }
+    });
+}
+
+function filterByType(type) {
+    const allCards = document.querySelectorAll('.result-card');
+    allCards.forEach(card => {
+        if (type === 'all' || card.getAttribute('data-type') === type) {
+            card.style.display = 'block';
+            card.style.animation = 'fadeIn 0.3s ease-in';
+        } else {
+            card.style.display = 'none';
+        }
+    });
+    
+    // Update active filter chip
+    document.querySelectorAll('.filter-chip').forEach(chip => chip.classList.remove('active'));
+    event.target.classList.add('active');
+}
+
+function filterByRelevance(level) {
+    const allCards = document.querySelectorAll('.result-card');
+    allCards.forEach(card => {
+        if (level === 'all' || card.getAttribute('data-relevance') === level) {
+            card.style.display = 'block';
+            card.style.animation = 'fadeIn 0.3s ease-in';
+        } else {
+            card.style.display = 'none';
+        }
+    });
+    
+    // Update active filter chip
+    document.querySelectorAll('.filter-chip').forEach(chip => chip.classList.remove('active'));
+    event.target.classList.add('active');
+}
+
+function toggleImage(resultId) {
+    const container = document.getElementById('image-container-' + resultId);
+    if (container) {
+        if (container.style.display === 'none') {
+            container.style.display = 'block';
+            container.classList.add('fade-in');
+        } else {
+            container.style.display = 'none';
+        }
+    }
+}
+
+function expandAllImages() {
+    const containers = document.querySelectorAll('[id^="image-container-"]');
+    let count = 0;
+    containers.forEach(container => {
+        if (container.style.display !== 'block') {
+            container.style.display = 'block';
+            container.classList.add('fade-in');
+            count++;
+        }
+    });
+    showToast(`已显示 ${count} 个图片`, 'success');
+}
+
+function copyAllResults() {
+    const results = document.querySelectorAll('[id^="result-"]');
+    let allContent = `搜索查询: "${document.querySelector('input[name="q"]').value}"\n`;
+    allContent += `搜索时间: ${new Date().toLocaleString()}\n`;
+    allContent += `总结果数: ${results.length}\n\n`;
+    
+    results.forEach((result, index) => {
+        if (result.closest('.result-card').style.display !== 'none') {
+            allContent += `=== 结果 ${index + 1} ===\n`;
+            allContent += result.textContent.trim() + '\n\n';
+        }
+    });
+    
+    copyToClipboard(allContent);
+    showToast(`已复制所有可见结果到剪贴板！`, 'success');
+}
+
+function exportResults() {
+    const results = document.querySelectorAll('[id^="result-"]');
+    let csvContent = "类型,SKU,问题/标题,答案/内容,相关度,匹配类型,分类\n";
+    
+    results.forEach(result => {
+        if (result.closest('.result-card').style.display !== 'none') {
+            const card = result.closest('.result-card');
+            const type = card.getAttribute('data-type');
+            const content = result.textContent.trim().split('\n');
+            
+            let row = [];
+            if (type === 'qa_entry') {
+                row = [
+                    'QA条目',
+                    content.find(line => line.startsWith('SKU:'))?.replace('SKU: ', '') || '',
+                    content.find(line => line.startsWith('问题:'))?.replace('问题: ', '') || '',
+                    content.find(line => line.startsWith('答案:'))?.replace('答案: ', '') || '',
+                    content.find(line => line.startsWith('相关度:'))?.replace('相关度: ', '') || '',
+                    content.find(line => line.startsWith('匹配类型:'))?.replace('匹配类型: ', '') || '',
+                    content.find(line => line.startsWith('分类:'))?.replace('分类: ', '') || ''
+                ];
+            } else {
+                row = [
+                    '文档片段',
+                    '',
+                    content.find(line => line.startsWith('文档:'))?.replace('文档: ', '') || '',
+                    content.find(line => line.startsWith('内容:'))?.replace('内容: ', '') || '',
+                    content.find(line => line.startsWith('相关度:'))?.replace('相关度: ', '') || '',
+                    content.find(line => line.startsWith('匹配类型:'))?.replace('匹配类型: ', '') || '',
+                    ''
+                ];
+            }
+            
+            // Escape commas and quotes
+            row = row.map(field => `"${field.replace(/"/g, '""')}"`);
+            csvContent += row.join(',') + '\n';
+        }
+    });
+    
+    // Download CSV
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `search_results_${new Date().getTime()}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    showToast('搜索结果已导出为 CSV 文件', 'success');
+}
+
+function copyToClipboard(text) {
+    if (navigator.clipboard) {
+        navigator.clipboard.writeText(text).then(function() {
+            console.log('复制成功');
+        }).catch(function() {
+            console.log('复制失败');
+        });
+    } else {
+        // 兼容旧版浏览器
+        const textArea = document.createElement('textarea');
+        textArea.value = text;
+        document.body.appendChild(textArea);
+        textArea.select();
+        try {
+            document.execCommand('copy');
+            console.log('复制成功');
+        } catch (err) {
+            console.log('复制失败');
+        }
+        document.body.removeChild(textArea);
+    }
+}
+
+function searchSimilar(sku) {
+    const searchInput = document.querySelector('input[name="q"]');
+    searchInput.value = sku;
+    searchInput.closest('form').submit();
+}
+
+function shareResult(resultId) {
+    const resultElement = document.getElementById('result-' + resultId);
+    const content = resultElement.textContent.trim();
+    
+    if (navigator.share) {
+        navigator.share({
+            title: '搜索结果分享',
+            text: content,
+            url: window.location.href
+        }).then(() => {
+            showToast('分享成功！', 'success');
+        }).catch((error) => {
+            copyToClipboard(content);
+            showToast('已复制到剪贴板以便分享', 'info');
+        });
+    } else {
+        copyToClipboard(content);
+        showToast('已复制到剪贴板以便分享', 'info');
+    }
+}
+
+function openImageModal(imageSrc, sku) {
+    const modal = new bootstrap.Modal(document.getElementById('imageModal'));
+    const modalImage = document.getElementById('modalImage');
+    const modalTitle = document.getElementById('imageModalTitle');
+    const modalLink = document.getElementById('modalImageLink');
+    
+    modalImage.src = imageSrc;
+    modalImage.alt = `图片 ${sku}`;
+    modalTitle.textContent = `${sku} - 图片预览`;
+    modalLink.href = imageSrc;
+    
+    modal.show();
+}
+
+function showImageError(resultId, originalUrl) {
+    const img = document.querySelector(`#image-container-${resultId} img`);
+    const errorDiv = document.getElementById(`image-error-${resultId}`);
+    
+    if (img) img.style.display = 'none';
+    if (errorDiv) errorDiv.style.display = 'block';
+    
+    console.warn(`Failed to load image for result ${resultId}: ${originalUrl}`);
+}
+
+function showToast(message, type = 'info') {
+    const toast = document.createElement('div');
+    toast.className = `toast-message toast-${type}`;
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    
+    setTimeout(() => {
+        toast.remove();
+    }, 2000);
+}
+
+// Handle copy result buttons
+document.addEventListener('click', function(e) {
+    if (e.target.classList.contains('copy-result') || e.target.closest('.copy-result')) {
+        e.preventDefault();
+        const button = e.target.closest('.copy-result') || e.target;
+        const resultId = button.getAttribute('data-result-id');
+        const resultElement = document.getElementById('result-' + resultId);
+        
+        if (resultElement) {
+            // 获取答案部分
+            const content = resultElement.textContent;
+            const answerMatch = content.match(/答案: (.*?)(?=\n|$)/);
+            const answer = answerMatch ? answerMatch[1].trim() : '';
+            
+            // 直接复制答案，不添加前缀
+            copyToClipboard(answer);
+            showToast('答案已复制到剪贴板！', 'success');
+        }
+    }
+});
+
+// Auto-hide images on small screens to save space
+if (window.innerWidth < 768) {
+    document.querySelectorAll('[id^="image-container-"]').forEach(container => {
+        container.style.display = 'none';
+    });
+}
+
+// Add keyboard shortcuts
+document.addEventListener('keydown', function(e) {
+    // Ctrl/Cmd + K: Focus search input
+    if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault();
+        document.querySelector('input[name="q"]').focus();
+    }
+    
+    // Ctrl/Cmd + A: Select all results (show all filters)
+    if ((e.ctrlKey || e.metaKey) && e.key === 'a' && !e.target.tagName.match(/INPUT|TEXTAREA/)) {
+        e.preventDefault();
+        filterByType('all');
+        document.querySelector('.filter-chip').click();
+    }
+    
+    // Escape: Close modals and reset filters
+    if (e.key === 'Escape') {
+        const modals = document.querySelectorAll('.modal.show');
+        modals.forEach(modal => {
+            const bsModal = bootstrap.Modal.getInstance(modal);
+            if (bsModal) bsModal.hide();
+        });
+        
+        // Reset filters
+        filterByType('all');
+        document.querySelectorAll('.filter-chip').forEach(chip => chip.classList.remove('active'));
+        document.querySelector('.filter-chip').classList.add('active');
+    }
+    
+    // Number keys 1-5 for quick filters
+    if (e.key >= '1' && e.key <= '5' && !e.target.tagName.match(/INPUT|TEXTAREA/)) {
+        e.preventDefault();
+        const filters = ['all', 'qa_entry', 'document_chunk', 'high', 'medium'];
+        const filterActions = [
+            () => filterByType('all'),
+            () => filterByType('qa_entry'),
+            () => filterByType('document_chunk'),
+            () => filterByRelevance('high'),
+            () => filterByRelevance('medium')
+        ];
+        
+        const index = parseInt(e.key) - 1;
+        if (index < filterActions.length) {
+            filterActions[index]();
+            document.querySelectorAll('.filter-chip')[index].click();
+        }
+    }
+});
+
+// Smooth scroll to top functionality
+function scrollToTop() {
+    window.scrollTo({
+        top: 0,
+        behavior: 'smooth'
+    });
+}
+
+// Add scroll to top button
+window.addEventListener('scroll', function() {
+    const scrollButton = document.getElementById('scrollTopBtn');
+    if (!scrollButton) {
+        const btn = document.createElement('button');
+        btn.id = 'scrollTopBtn';
+        btn.className = 'btn btn-primary position-fixed';
+        btn.style.cssText = `
+            bottom: 20px;
+            right: 20px;
+            z-index: 1000;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            display: none;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        `;
+        btn.innerHTML = '<i class="fas fa-arrow-up"></i>';
+        btn.onclick = scrollToTop;
+        document.body.appendChild(btn);
+    }
+    
+    const scrollTopBtn = document.getElementById('scrollTopBtn');
+    if (window.pageYOffset > 300) {
+        scrollTopBtn.style.display = 'block';
+    } else {
+        scrollTopBtn.style.display = 'none';
+    }
+});
+
+// Add CSS animations
+const style = document.createElement('style');
+style.textContent = `
+    @keyframes slideInRight {
+        from { transform: translateX(100%); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
+    }
+    
+    @keyframes slideOutRight {
+        from { transform: translateX(0); opacity: 1; }
+        to { transform: translateX(100%); opacity: 0; }
+    }
+    
+    .fade-in {
+        animation: fadeIn 0.5s ease-in;
+    }
+    
+    @keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+    }
+    
+    .result-card {
+        animation: slideUp 0.3s ease-out;
+    }
+    
+    @keyframes slideUp {
+        from { 
+            opacity: 0;
+            transform: translateY(20px);
+        }
+        to { 
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+    
+    .sku-badge {
+        font-family: 'Courier New', monospace;
+        font-weight: bold;
+        letter-spacing: 1px;
+    }
+    
+    .answer-text, .text-content {
+        line-height: 1.6;
+        color: #495057;
+    }
+    
+    .image-container img {
+        transition: transform 0.3s ease;
+    }
+    
+    .image-container img:hover {
+        transform: scale(1.02);
+    }
+    
+    .filter-chip {
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+    
+    .filter-chip:hover {
+        background: #dee2e6;
+        transform: translateY(-1px);
+    }
+    
+    .filter-chip.active {
+        background: #007bff !important;
+        color: white !important;
+        transform: translateY(-1px);
+        box-shadow: 0 2px 8px rgba(0,123,255,0.3);
+    }
+    
+    .content-section {
+        transition: background-color 0.2s ease;
+    }
+    
+    .result-card:hover .content-section {
+        background: #e9ecef;
+    }
+    
+    .document-preview {
+        transition: all 0.2s ease;
+    }
+    
+    .document-preview:hover {
+        background: #e9ecef;
+        transform: translateY(-2px);
+    }
+    
+    /* Responsive improvements */
+    @media (max-width: 768px) {
+        .search-filters .row > div {
+            margin-bottom: 10px;
+        }
+        
+        .filter-chip {
+            display: block;
+            margin: 5px 0;
+            text-align: center;
+        }
+        
+        .btn-group {
+            flex-direction: column;
+        }
+        
+        .btn-group .btn {
+            margin-bottom: 5px;
+        }
+    }
+    
+    /* Print styles */
+    @media print {
+        .search-filters,
+        .btn,
+        .dropdown,
+        .pagination,
+        .toast-notification,
+        .modal {
+            display: none !important;
+        }
+        
+        .result-card {
+            page-break-inside: avoid;
+            border: 1px solid #ddd;
+            margin-bottom: 1rem;
+        }
+        
+        .image-container {
+            max-height: 150px;
+        }
+    }
+`;
+document.head.appendChild(style);
+
+// Performance optimization: Lazy load images
+document.addEventListener('DOMContentLoaded', function() {
+    if ('IntersectionObserver' in window) {
+        const imageObserver = new IntersectionObserver((entries, observer) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    const img = entry.target;
+                    if (img.dataset.src) {
+                        img.src = img.dataset.src;
+                        img.removeAttribute('data-src');
+                        observer.unobserve(img);
+                    }
+                }
+            });
+        });
+
+        document.querySelectorAll('img[data-src]').forEach(img => {
+            imageObserver.observe(img);
+        });
+    }
+});
+
+// Add search suggestions functionality
+let searchTimeout;
+document.querySelector('input[name="q"]').addEventListener('input', function(e) {
+    clearTimeout(searchTimeout);
+    const query = e.target.value.trim();
+    
+    if (query.length > 2) {
+        searchTimeout = setTimeout(() => {
+            // This could be extended to show search suggestions
+            console.log('Could show suggestions for:', query);
+        }, 300);
+    }
+});
+
+// Initialize everything
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('Enhanced search results loaded');
+    
+    // Show keyboard shortcuts hint
+    if (localStorage.getItem('showKeyboardHints') !== 'false') {
+        setTimeout(() => {
+            showToast('键盘快捷键: Ctrl+K 聚焦搜索, 1-5 快速筛选, Esc 重置', 'info');
+            localStorage.setItem('showKeyboardHints', 'false');
+        }, 2000);
+    }
+});
+</script>
+{% endblock %}

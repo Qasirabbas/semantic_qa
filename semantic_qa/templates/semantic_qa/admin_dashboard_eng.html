@@ -1,0 +1,318 @@
+<!-- semantic_qa/templates/semantic_qa/admin_dashboard.html -->
+{% extends 'semantic_qa/base.html' %}
+{% load static %}
+{% load i18n %}
+
+{% block title %}{% trans "Admin Dashboard" %}{% endblock %}
+
+{% block extra_css %}
+<style>
+.stat-card {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-radius: 15px;
+    padding: 25px;
+    text-align: center;
+    transition: all 0.3s ease;
+    border: none;
+}
+
+.stat-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+}
+
+.stat-card .stat-number {
+    font-size: 2.5rem;
+    font-weight: 700;
+    margin-bottom: 10px;
+}
+
+.stat-card .stat-label {
+    font-size: 1.1rem;
+    opacity: 0.9;
+    margin: 0;
+}
+
+.chart-container {
+    height: 300px;
+    background: white;
+    border-radius: 10px;
+    padding: 20px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+}
+
+.recent-activity {
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.activity-item {
+    border-left: 3px solid #007bff;
+    padding-left: 15px;
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+}
+
+.activity-item:last-child {
+    border-left-color: transparent;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <h1 class="display-5 mb-0">
+            <i class="fas fa-tachometer-alt text-primary me-3"></i>{% trans "Admin Dashboard" %}
+        </h1>
+        <p class="lead text-muted">{% trans "System overview and analytics" %}</p>
+    </div>
+</div>
+
+<!-- Statistics Cards -->
+<div class="row mb-4">
+    <div class="col-lg-3 col-md-6 mb-3">
+        <div class="stat-card">
+            <div class="stat-number">{{ total_entries }}</div>
+            <p class="stat-label">{% trans "QA Entries" %}</p>
+        </div>
+    </div>
+    <div class="col-lg-3 col-md-6 mb-3">
+        <div class="stat-card" style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);">
+            <div class="stat-number">{{ total_queries }}</div>
+            <p class="stat-label">{% trans "Total Searches" %}</p>
+        </div>
+    </div>
+    <div class="col-lg-3 col-md-6 mb-3">
+        <div class="stat-card" style="background: linear-gradient(135deg, #ff6b6b 0%, #ffa726 100%);">
+            <div class="stat-number">{{ categories|length }}</div>
+            <p class="stat-label">{% trans "Categories" %}</p>
+        </div>
+    </div>
+    <div class="col-lg-3 col-md-6 mb-3">
+        <div class="stat-card" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
+            <div class="stat-number">{{ popular_skus|length }}</div>
+            <p class="stat-label">{% trans "Active SKUs" %}</p>
+        </div>
+    </div>
+</div>
+
+<!-- Charts and Analytics -->
+<div class="row mb-4">
+    <!-- Query Types Chart -->
+    <div class="col-lg-6 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-chart-pie me-2"></i>{% trans "Query Types Distribution" %}
+                </h5>
+            </div>
+            <div class="card-body">
+                <canvas id="queryTypesChart" height="200"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Categories Chart -->
+    <div class="col-lg-6 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-chart-bar me-2"></i>{% trans "Categories Distribution" %}
+                </h5>
+            </div>
+            <div class="card-body">
+                <canvas id="categoriesChart" height="200"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Tables -->
+<div class="row">
+    <!-- Recent Queries -->
+    <div class="col-lg-6 mb-4">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="fas fa-history me-2"></i>{% trans "Recent Searches" %}
+                </h5>
+                <a href="{% url 'semantic_qa:query_logs' %}" class="btn btn-sm btn-outline-primary">
+                    {% trans "View All" %}
+                </a>
+            </div>
+            <div class="card-body">
+                <div class="recent-activity">
+                    {% for query in recent_queries %}
+                    <div class="activity-item">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <strong>{{ query.query_text|truncatechars:50 }}</strong>
+                                <br>
+                                <small class="text-muted">
+                                    <i class="fas fa-tag me-1"></i>{{ query.query_type|title }}
+                                    <i class="fas fa-clock ms-2 me-1"></i>{{ query.response_time|floatformat:3 }}s
+                                </small>
+                            </div>
+                            <small class="text-muted">{{ query.created_at|timesince }} ago</small>
+                        </div>
+                    </div>
+                    {% empty %}
+                    <p class="text-muted text-center">{% trans "No recent searches" %}</p>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Popular SKUs -->
+    <div class="col-lg-6 mb-4">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="fas fa-star me-2"></i>{% trans "Popular SKUs" %}
+                </h5>
+                <a href="{% url 'semantic_qa:manage_entries' %}" class="btn btn-sm btn-outline-primary">
+                    {% trans "Manage" %}
+                </a>
+            </div>
+            <div class="card-body">
+                {% for sku in popular_skus %}
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span class="badge bg-primary">{{ sku.sku }}</span>
+                    <span class="text-muted">{{ sku.query_count }} searches</span>
+                </div>
+                {% empty %}
+                <p class="text-muted text-center">{% trans "No search data available" %}</p>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Actions -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-tools me-2"></i>{% trans "Quick Actions" %}
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3 mb-2">
+                        <a href="{% url 'semantic_qa:upload_excel_page' %}" class="btn btn-primary w-100">
+                            <i class="fas fa-upload me-2"></i>{% trans "Upload Excel" %}
+                        </a>
+                    </div>
+                    <div class="col-md-3 mb-2">
+                        <a href="{% url 'semantic_qa:manage_entries' %}" class="btn btn-info w-100">
+                            <i class="fas fa-database me-2"></i>{% trans "Manage Entries" %}
+                        </a>
+                    </div>
+                    <div class="col-md-3 mb-2">
+                        <a href="{% url 'semantic_qa:analytics_dashboard' %}" class="btn btn-success w-100">
+                            <i class="fas fa-chart-line me-2"></i>{% trans "Analytics" %}
+                        </a>
+                    </div>
+                    <div class="col-md-3 mb-2">
+                        <a href="{% url 'semantic_qa:export_data' %}" class="btn btn-warning w-100">
+                            <i class="fas fa-download me-2"></i>{% trans "Export Data" %}
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Query Types Chart
+    const queryTypesCtx = document.getElementById('queryTypesChart').getContext('2d');
+    const queryTypesData = [
+        {% for query_type in query_types %}
+        {
+            label: '{{ query_type.query_type|title }}',
+            value: {{ query_type.count }}
+        },
+        {% endfor %}
+    ];
+
+    new Chart(queryTypesCtx, {
+        type: 'doughnut',
+        data: {
+            labels: queryTypesData.map(item => item.label),
+            datasets: [{
+                data: queryTypesData.map(item => item.value),
+                backgroundColor: [
+                    '#FF6384',
+                    '#36A2EB', 
+                    '#FFCE56',
+                    '#4BC0C0',
+                    '#9966FF'
+                ],
+                borderWidth: 2,
+                borderColor: '#fff'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                }
+            }
+        }
+    });
+
+    // Categories Chart  
+    const categoriesCtx = document.getElementById('categoriesChart').getContext('2d');
+    const categoriesData = [
+        {% for category in categories %}
+        {
+            label: '{{ category.category|title }}',
+            value: {{ category.count }}
+        },
+        {% endfor %}
+    ];
+
+    new Chart(categoriesCtx, {
+        type: 'bar',
+        data: {
+            labels: categoriesData.map(item => item.label),
+            datasets: [{
+                label: 'Number of Entries',
+                data: categoriesData.map(item => item.value),
+                backgroundColor: 'rgba(54, 162, 235, 0.8)',
+                borderColor: 'rgba(54, 162, 235, 1)',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        stepSize: 1
+                    }
+                }
+            },
+            plugins: {
+                legend: {
+                    display: false
+                }
+            }
+        }
+    });
+});
+</script>
+{% endblock %}

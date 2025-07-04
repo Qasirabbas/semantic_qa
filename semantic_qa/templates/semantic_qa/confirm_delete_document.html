@@ -1,0 +1,79 @@
+<!-- semantic_qa/templates/semantic_qa/confirm_delete_document.html -->
+{% extends 'semantic_qa/base.html' %}
+{% load static %}
+{% load i18n %}
+
+{% block title %}删除文档 - {{ document.title }}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-danger text-white">
+                <h4 class="mb-0">
+                    <i class="fas fa-trash me-2"></i>确认删除文档
+                </h4>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    <strong>警告：</strong>此操作不可撤销！
+                </div>
+                
+                <h5>您确定要删除以下文档吗？</h5>
+                
+                <div class="card mt-3">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center">
+                            {% if document.document_type == 'pdf' %}
+                                <i class="fas fa-file-pdf text-danger fa-2x me-3"></i>
+                            {% elif document.document_type == 'image' %}
+                                <i class="fas fa-image text-success fa-2x me-3"></i>
+                            {% elif document.document_type == 'link' %}
+                                <i class="fas fa-link text-info fa-2x me-3"></i>
+                            {% else %}
+                                <i class="fas fa-file text-secondary fa-2x me-3"></i>
+                            {% endif %}
+                            
+                            <div>
+                                <h5 class="card-title mb-1">{{ document.title }}</h5>
+                                <p class="card-text text-muted mb-1">
+                                    类型：{{ document.get_document_type_display }}
+                                    {% if document.category %}| 分类：{{ document.category }}{% endif %}
+                                </p>
+                                <small class="text-muted">
+                                    上传时间：{{ document.created_at|date:"Y-m-d H:i:s" }}
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                {% if chunk_count > 0 %}
+                <div class="alert alert-info mt-3">
+                    <i class="fas fa-info-circle me-2"></i>
+                    删除此文档将同时删除 <strong>{{ chunk_count }}</strong> 个相关的文本块。
+                </div>
+                {% endif %}
+                
+                <div class="mt-4">
+                    <form method="post">
+                        {% csrf_token %}
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-danger">
+                                <i class="fas fa-trash me-2"></i>确认删除
+                            </button>
+                            <a href="{% url 'semantic_qa:document_detail' document.id %}" class="btn btn-secondary">
+                                <i class="fas fa-arrow-left me-2"></i>取消
+                            </a>
+                            <a href="{% url 'semantic_qa:manage_documents' %}" class="btn btn-outline-secondary">
+                                <i class="fas fa-list me-2"></i>返回文档列表
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

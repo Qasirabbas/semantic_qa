@@ -1,0 +1,523 @@
+<!-- semantic_qa/templates/semantic_qa/upload_excel.html -->
+{% extends 'semantic_qa/base.html' %}
+{% load static %}
+{% load i18n %}
+
+{% block title %}{% trans "Upload Excel File" %}{% endblock %}
+
+{% block extra_css %}
+<style>
+.file-drop-zone {
+    border: 2px dashed #007bff;
+    border-radius: 10px;
+    padding: 40px;
+    text-align: center;
+    background-color: #f8f9fa;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.file-drop-zone:hover,
+.file-drop-zone.drag-over {
+    border-color: #0056b3;
+    background-color: #e3f2fd;
+}
+
+.file-info {
+    background-color: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    margin-top: 15px;
+}
+
+.template-download {
+    background: linear-gradient(135deg, #28a745, #20c997);
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 8px;
+    transition: all 0.3s ease;
+}
+
+.template-download:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(40, 167, 69, 0.3);
+    color: white;
+}
+
+.column-examples {
+    background-color: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    padding: 15px;
+    margin: 15px 0;
+}
+
+.column-examples h6 {
+    color: #495057;
+    margin-bottom: 10px;
+}
+
+.column-examples .row {
+    margin-bottom: 8px;
+}
+
+.column-examples .col-4 {
+    font-weight: 600;
+    color: #007bff;
+}
+
+.column-examples .col-8 {
+    color: #6c757d;
+    font-size: 0.9em;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-10">
+        <div class="card shadow-lg">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0">
+                    <i class="fas fa-upload me-2"></i>{% trans "Upload Excel File" %}
+                </h4>
+            </div>
+            <div class="card-body">
+                <!-- Instructions -->
+                <div class="alert alert-info">
+                    <h6 class="alert-heading">
+                        <i class="fas fa-info-circle me-2"></i>{% trans "Upload Instructions" %}
+                    </h6>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <ul class="mb-0">
+                                <li>{% trans "Upload an Excel file (.xlsx or .xls) containing QA data" %}</li>
+                                <li>{% trans "Required columns: SKU, Question, Answer" %}</li>
+                                <li>{% trans "Optional columns: Image_Link, Category, Keywords" %}</li>
+                            </ul>
+                        </div>
+                        <div class="col-md-6">
+                            <ul class="mb-0">
+                                <li>{% trans "Maximum file size: 10MB" %}</li>
+                                <li>{% trans "Column names are case-insensitive" %}</li>
+                                <li>{% trans "You can use spaces or underscores in column names" %}</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Column Name Examples -->
+                <div class="column-examples">
+                    <h6><i class="fas fa-table me-2"></i>{% trans "Accepted Column Name Variations:" %}</h6>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="row">
+                                <div class="col-4">SKU:</div>
+                                <div class="col-8">SKU, sku, product_id, Product ID</div>
+                            </div>
+                            <div class="row">
+                                <div class="col-4">Question:</div>
+                                <div class="col-8">Question, question, Q, query</div>
+                            </div>
+                            <div class="row">
+                                <div class="col-4">Answer:</div>
+                                <div class="col-8">Answer, answer, A, response</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="row">
+                                <div class="col-4">Image_Link:</div>
+                                <div class="col-8">Image Link, image_url, img_link</div>
+                            </div>
+                            <div class="row">
+                                <div class="col-4">Category:</div>
+                                <div class="col-8">Category, category, type, cat</div>
+                            </div>
+                            <div class="row">
+                                <div class="col-4">Keywords:</div>
+                                <div class="col-8">Keywords, keyword, tags, search terms</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Download Template -->
+                <div class="text-center mb-4">
+                    <a href="{% url 'semantic_qa:download_template' %}" 
+                       class="btn template-download me-3">
+                        <i class="fas fa-download me-2"></i>{% trans "Download Excel Template" %}
+                    </a>
+                    <small class="d-block mt-2 text-muted">
+                        {% trans "Download a sample template with instructions and examples" %}
+                    </small>
+                </div>
+
+                <hr>
+
+                <!-- Upload Form -->
+                <form method="post" enctype="multipart/form-data" id="uploadForm">
+                    {% csrf_token %}
+                    
+                    <!-- File Drop Zone -->
+                    <div class="file-drop-zone mb-3" onclick="document.getElementById('id_excel_file').click()">
+                        <i class="fas fa-cloud-upload-alt fa-3x text-primary mb-3"></i>
+                        <h5>{% trans "Click to select file or drag and drop" %}</h5>
+                        <p class="text-muted mb-0">
+                            {% trans "Supported formats: .xlsx, .xls (Max: 10MB)" %}
+                        </p>
+                        {{ form.excel_file }}
+                    </div>
+
+                    <!-- File Preview Area -->
+                    <div class="file-preview"></div>
+
+                    <!-- Options -->
+                    <div class="form-group mb-3">
+                        <div class="form-check">
+                            {{ form.overwrite_existing }}
+                            <label class="form-check-label" for="{{ form.overwrite_existing.id_for_label }}">
+                                {{ form.overwrite_existing.label }}
+                                <small class="text-muted d-block">{{ form.overwrite_existing.help_text }}</small>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Upload Button -->
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary btn-lg" id="uploadBtn">
+                            <i class="fas fa-upload me-2"></i>{% trans "Upload and Process File" %}
+                        </button>
+                    </div>
+                </form>
+
+                <!-- Progress Bar (hidden by default) -->
+                <div class="progress mt-3" id="uploadProgress" style="display: none;">
+                    <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                         role="progressbar" style="width: 0%"></div>
+                </div>
+
+                <!-- Error Display Area -->
+                <div id="errorDisplay" class="mt-3" style="display: none;"></div>
+            </div>
+        </div>
+
+        <!-- Sample Data Display -->
+        {% if sample_entries %}
+        <div class="card mt-4">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-table me-2"></i>{% trans "Current Data Sample" %}
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>SKU</th>
+                                <th>Question</th>
+                                <th>Answer</th>
+                                <th>Category</th>
+                                <th>Image</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for entry in sample_entries %}
+                            <tr>
+                                <td><span class="badge bg-primary">{{ entry.sku }}</span></td>
+                                <td>{{ entry.question|truncatechars:50 }}</td>
+                                <td>{{ entry.answer|truncatechars:60 }}</td>
+                                <td>{{ entry.category|default:"general" }}</td>
+                                <td>
+                                    {% if entry.image_link %}
+                                        <i class="fas fa-image text-success"></i>
+                                    {% else %}
+                                        <i class="fas fa-times text-muted"></i>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <small class="text-muted">
+                    {% trans "This shows a sample of your current data. New uploads will add to or update existing entries." %}
+                </small>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Quick Actions -->
+        <div class="card mt-4">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-tools me-2"></i>{% trans "Quick Actions" %}
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3 mb-2">
+                        <a href="{% url 'semantic_qa:manage_entries' %}" class="btn btn-outline-primary w-100">
+                            <i class="fas fa-database me-2"></i>{% trans "Manage Entries" %}
+                        </a>
+                    </div>
+                    <div class="col-md-3 mb-2">
+                        <a href="{% url 'semantic_qa:admin_dashboard' %}" class="btn btn-outline-info w-100">
+                            <i class="fas fa-chart-bar me-2"></i>{% trans "View Analytics" %}
+                        </a>
+                    </div>
+                    <div class="col-md-3 mb-2">
+                        <a href="{% url 'semantic_qa:index' %}" class="btn btn-outline-success w-100">
+                            <i class="fas fa-search me-2"></i>{% trans "Test Search" %}
+                        </a>
+                    </div>
+                    <div class="col-md-3 mb-2">
+                        <a href="{% url 'semantic_qa:export_data' %}" class="btn btn-outline-warning w-100">
+                            <i class="fas fa-download me-2"></i>{% trans "Export Data" %}
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('uploadForm');
+    const fileInput = document.getElementById('id_excel_file');
+    const uploadBtn = document.getElementById('uploadBtn');
+    const progressBar = document.getElementById('uploadProgress');
+    const dropZone = document.querySelector('.file-drop-zone');
+    const errorDisplay = document.getElementById('errorDisplay');
+
+    // Hide the default file input
+    fileInput.style.display = 'none';
+
+    // Handle file selection
+    fileInput.addEventListener('change', function(e) {
+        if (e.target.files.length > 0) {
+            const file = e.target.files[0];
+            showFilePreview(file);
+        }
+    });
+
+    // Handle form submission with AJAX for better error handling
+    form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        if (!fileInput.files.length) {
+            showError('{% trans "Please select a file to upload" %}');
+            return;
+        }
+
+        uploadFile();
+    });
+
+    // Drag and drop functionality
+    dropZone.addEventListener('dragover', handleDragOver);
+    dropZone.addEventListener('dragenter', handleDragEnter);
+    dropZone.addEventListener('dragleave', handleDragLeave);
+    dropZone.addEventListener('drop', handleDrop);
+
+    function handleDragOver(e) {
+        e.preventDefault();
+        e.stopPropagation();
+    }
+
+    function handleDragEnter(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        dropZone.classList.add('drag-over');
+    }
+
+    function handleDragLeave(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        dropZone.classList.remove('drag-over');
+    }
+
+    function handleDrop(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        dropZone.classList.remove('drag-over');
+        
+        const files = e.dataTransfer.files;
+        if (files.length > 0) {
+            fileInput.files = files;
+            showFilePreview(files[0]);
+        }
+    }
+
+    function uploadFile() {
+        const formData = new FormData(form);
+        
+        // Show progress bar
+        progressBar.style.display = 'block';
+        uploadBtn.disabled = true;
+        uploadBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>{% trans "Processing..." %}';
+        errorDisplay.style.display = 'none';
+
+        // Simulate progress animation
+        let progress = 0;
+        const progressInterval = setInterval(() => {
+            progress += Math.random() * 15;
+            if (progress > 90) progress = 90;
+            progressBar.querySelector('.progress-bar').style.width = progress + '%';
+        }, 300);
+
+        fetch('{% url "semantic_qa:upload_excel" %}', {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            clearInterval(progressInterval);
+            progressBar.querySelector('.progress-bar').style.width = '100%';
+            
+            if (data.success) {
+                showSuccess(data);
+                setTimeout(() => {
+                    window.location.href = '{% url "semantic_qa:manage_entries" %}';
+                }, 2000);
+            } else {
+                showError(data.error, data.suggestion, data.error_details);
+            }
+        })
+        .catch(error => {
+            clearInterval(progressInterval);
+            console.error('Upload error:', error);
+            showError('{% trans "Upload failed. Please try again." %}');
+        })
+        .finally(() => {
+            uploadBtn.disabled = false;
+            uploadBtn.innerHTML = '<i class="fas fa-upload me-2"></i>{% trans "Upload and Process File" %}';
+            setTimeout(() => {
+                progressBar.style.display = 'none';
+                progressBar.querySelector('.progress-bar').style.width = '0%';
+            }, 2000);
+        });
+    }
+
+    function showFilePreview(file) {
+        const previewContainer = document.querySelector('.file-preview');
+        
+        // Validate file type
+        const allowedTypes = ['.xlsx', '.xls'];
+        const fileExtension = '.' + file.name.split('.').pop().toLowerCase();
+        
+        if (!allowedTypes.includes(fileExtension)) {
+            showError('{% trans "Invalid file type. Please upload an Excel file (.xlsx or .xls)" %}');
+            fileInput.value = '';
+            return;
+        }
+
+        // Validate file size (10MB)
+        if (file.size > 10 * 1024 * 1024) {
+            showError('{% trans "File size must be less than 10MB" %}');
+            fileInput.value = '';
+            return;
+        }
+
+        // Show file info
+        previewContainer.innerHTML = `
+            <div class="file-info p-3">
+                <div class="d-flex align-items-center">
+                    <i class="fas fa-file-excel text-success fa-2x me-3"></i>
+                    <div class="flex-grow-1">
+                        <h6 class="mb-1">${file.name}</h6>
+                        <small class="text-muted">${formatFileSize(file.size)}</small>
+                    </div>
+                    <button type="button" class="btn btn-outline-danger btn-sm" 
+                            onclick="clearFile()">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+        `;
+        
+        errorDisplay.style.display = 'none';
+    }
+
+    function showError(message, suggestion, details) {
+        let html = `
+            <div class="alert alert-danger">
+                <h6><i class="fas fa-exclamation-triangle me-2"></i>{% trans "Upload Error" %}</h6>
+                <p class="mb-2">${message}</p>
+        `;
+        
+        if (suggestion) {
+            html += `<p class="mb-2"><strong>{% trans "Suggestion:" %}</strong> ${suggestion}</p>`;
+        }
+        
+        if (details && details.length > 0) {
+            html += `
+                <details class="mt-2">
+                    <summary>{% trans "Error Details" %} (${details.length} {% trans "errors" %})</summary>
+                    <ul class="mt-2 mb-0">
+            `;
+            details.forEach(detail => {
+                html += `<li><small>${detail}</small></li>`;
+            });
+            html += `</ul></details>`;
+        }
+        
+        html += `
+                <hr class="my-2">
+                <div class="d-flex gap-2">
+                    <a href="{% url 'semantic_qa:download_template' %}" class="btn btn-sm btn-outline-primary">
+                        <i class="fas fa-download me-1"></i>{% trans "Download Template" %}
+                    </a>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="clearFile()">
+                        <i class="fas fa-redo me-1"></i>{% trans "Try Again" %}
+                    </button>
+                </div>
+            </div>
+        `;
+        
+        errorDisplay.innerHTML = html;
+        errorDisplay.style.display = 'block';
+    }
+
+    function showSuccess(data) {
+        const html = `
+            <div class="alert alert-success">
+                <h6><i class="fas fa-check-circle me-2"></i>{% trans "Upload Successful" %}</h6>
+                <p class="mb-2">${data.message}</p>
+                <ul class="mb-2">
+                    <li>{% trans "Total entries processed:" %} ${data.total_entries}</li>
+                    <li>{% trans "New entries created:" %} ${data.created}</li>
+                    <li>{% trans "Existing entries updated:" %} ${data.updated}</li>
+                    ${data.errors > 0 ? `<li class="text-warning">{% trans "Errors:" %} ${data.errors}</li>` : ''}
+                </ul>
+                <p class="mb-0">{% trans "Redirecting to manage entries page..." %}</p>
+            </div>
+        `;
+        
+        errorDisplay.innerHTML = html;
+        errorDisplay.style.display = 'block';
+    }
+
+    function formatFileSize(bytes) {
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+
+    // Global function to clear file
+    window.clearFile = function() {
+        fileInput.value = '';
+        document.querySelector('.file-preview').innerHTML = '';
+        errorDisplay.style.display = 'none';
+    };
+});
+</script>
+{% endblock %}

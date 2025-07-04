@@ -1,0 +1,389 @@
+<!-- semantic_qa/templates/semantic_qa/manage_entries.html -->
+{% extends 'semantic_qa/base.html' %}
+{% load static %}
+{% load i18n %}
+
+{% block title %}{% trans "Manage QA Entries" %}{% endblock %}
+
+{% block extra_css %}
+<style>
+.entry-card {
+    transition: transform 0.2s, box-shadow 0.2s;
+    border-left: 4px solid #007bff;
+}
+
+.entry-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+}
+
+.search-filters {
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 20px;
+}
+
+.entry-image {
+    max-height: 60px;
+    max-width: 80px;
+    object-fit: cover;
+    border-radius: 4px;
+}
+
+.sku-badge {
+    font-family: 'Courier New', monospace;
+    font-weight: bold;
+}
+
+.category-badge {
+    text-transform: capitalize;
+}
+
+.pagination-info {
+    color: #6c757d;
+    font-size: 0.9em;
+}
+
+@media (max-width: 768px) {
+    .search-filters .row > div {
+        margin-bottom: 10px;
+    }
+    
+    .table-responsive {
+        font-size: 0.9em;
+    }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <!-- Header -->
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h2>
+                    <i class="fas fa-database text-primary me-2"></i>{% trans "Manage QA Entries" %}
+                </h2>
+                <p class="text-muted mb-0">
+                    {% trans "Total entries:" %} <strong>{{ total_entries }}</strong>
+                </p>
+            </div>
+            <div>
+                <a href="{% url 'semantic_qa:upload_excel_page' %}" class="btn btn-success me-2">
+                    <i class="fas fa-upload me-1"></i>{% trans "Upload Excel" %}
+                </a>
+                <a href="{% url 'semantic_qa:export_data' %}" class="btn btn-outline-primary">
+                    <i class="fas fa-download me-1"></i>{% trans "Export Data" %}
+                </a>
+            </div>
+        </div>
+
+        <!-- Search and Filters -->
+        <div class="search-filters">
+            <form method="get" id="filterForm">
+                <div class="row">
+                    <div class="col-md-4 mb-2">
+                        <label for="search" class="form-label">{% trans "Search" %}</label>
+                        <input type="text" class="form-control" id="search" name="search" 
+                               value="{{ search_query }}" 
+                               placeholder="{% trans 'Search in SKU, question, answer...' %}">
+                    </div>
+                    <div class="col-md-3 mb-2">
+                        <label for="category" class="form-label">{% trans "Category" %}</label>
+                        <select class="form-control" id="category" name="category">
+                            <option value="">{% trans "All Categories" %}</option>
+                            {% for cat in all_categories %}
+                                {% if cat %}
+                                <option value="{{ cat }}" {% if cat == category_filter %}selected{% endif %}>
+                                    {{ cat|title }}
+                                </option>
+                                {% endif %}
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-3 mb-2">
+                        <label for="sku" class="form-label">{% trans "SKU" %}</label>
+                        <input type="text" class="form-control" id="sku" name="sku" 
+                               value="{{ sku_filter }}" 
+                               placeholder="{% trans 'Filter by SKU' %}">
+                    </div>
+                    <div class="col-md-2 mb-2">
+                        <label class="form-label">&nbsp;</label>
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-search me-1"></i>{% trans "Filter" %}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        <!-- Results -->
+        {% if page_obj %}
+            <!-- Pagination Info -->
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <div class="pagination-info">
+                    {% blocktrans with start=page_obj.start_index end=page_obj.end_index total=page_obj.paginator.count %}
+                    Showing {{ start }} to {{ end }} of {{ total }} entries
+                    {% endblocktrans %}
+                </div>
+                
+                {% if search_query or category_filter or sku_filter %}
+                <div>
+                    <a href="{% url 'semantic_qa:manage_entries' %}" class="btn btn-sm btn-outline-secondary">
+                        <i class="fas fa-times me-1"></i>{% trans "Clear Filters" %}
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Entries List -->
+            <div class="row">
+                {% for entry in page_obj %}
+                <div class="col-12 mb-3">
+                    <div class="card entry-card">
+                        <div class="card-body">
+                            <div class="row">
+                                <!-- Main Content -->
+                                <div class="col-md-{% if entry.image_link %}9{% else %}12{% endif %}">
+                                    <!-- Header -->
+                                    <div class="d-flex justify-content-between align-items-start mb-2">
+                                        <div>
+                                            <h5 class="card-title mb-1">
+                                                <span class="badge bg-primary sku-badge me-2">{{ entry.sku }}</span>
+                                                {{ entry.question|truncatechars:100 }}
+                                            </h5>
+                                            <div class="mb-2">
+                                                <span class="badge bg-info category-badge me-1">
+                                                    {{ entry.category|default:"general" }}
+                                                </span>
+                                                <small class="text-muted">
+                                                    <i class="fas fa-calendar me-1"></i>{{ entry.created_at|date:"M d, Y" }}
+                                                    {% if entry.updated_at != entry.created_at %}
+                                                    | <i class="fas fa-edit me-1"></i>{{ entry.updated_at|date:"M d, Y" }}
+                                                    {% endif %}
+                                                </small>
+                                            </div>
+                                        </div>
+                                        <div class="dropdown">
+                                            <button class="btn btn-sm btn-outline-secondary dropdown-toggle" 
+                                                    type="button" data-bs-toggle="dropdown">
+                                                <i class="fas fa-ellipsis-v"></i>
+                                            </button>
+                                            <ul class="dropdown-menu">
+                                                <li>
+                                                    <a class="dropdown-item" href="{% url 'semantic_qa:edit_entry' entry.id %}">
+                                                        <i class="fas fa-edit me-2"></i>{% trans "Edit" %}
+                                                    </a>
+                                                </li>
+                                                <li>
+                                                    <a class="dropdown-item text-danger" 
+                                                       href="{% url 'semantic_qa:delete_entry' entry.id %}">
+                                                        <i class="fas fa-trash me-2"></i>{% trans "Delete" %}
+                                                    </a>
+                                                </li>
+                                                <li><hr class="dropdown-divider"></li>
+                                                <li>
+                                                    <a class="dropdown-item copy-entry" href="#" 
+                                                       data-entry-id="{{ entry.id }}">
+                                                        <i class="fas fa-copy me-2"></i>{% trans "Copy Content" %}
+                                                    </a>
+                                                </li>
+                                            </ul>
+                                        </div>
+                                    </div>
+
+                                    <!-- Answer -->
+                                    <div class="mb-2">
+                                        <strong class="text-muted">{% trans "Answer:" %}</strong>
+                                        <p class="card-text mb-2">{{ entry.answer|truncatechars:200 }}</p>
+                                    </div>
+
+                                    <!-- Keywords -->
+                                    {% if entry.keywords %}
+                                    <div class="mb-2">
+                                        <small class="text-muted">
+                                            <strong>{% trans "Keywords:" %}</strong>
+                                            {{ entry.keywords|truncatechars:100 }}
+                                        </small>
+                                    </div>
+                                    {% endif %}
+
+                                    <!-- Actions -->
+                                    <div class="mt-3">
+                                        <a href="{% url 'semantic_qa:edit_entry' entry.id %}" 
+                                           class="btn btn-sm btn-outline-primary me-2">
+                                            <i class="fas fa-edit me-1"></i>{% trans "Edit" %}
+                                        </a>
+                                        <button class="btn btn-sm btn-outline-info me-2 copy-entry" 
+                                                data-entry-id="{{ entry.id }}">
+                                            <i class="fas fa-copy me-1"></i>{% trans "Copy" %}
+                                        </button>
+                                        {% if entry.image_link %}
+                                        <button class="btn btn-sm btn-outline-success me-2" 
+                                                onclick="window.open('{{ entry.image_link }}', '_blank')">
+                                            <i class="fas fa-image me-1"></i>{% trans "View Image" %}
+                                        </button>
+                                        {% endif %}
+                                    </div>
+                                </div>
+
+                                <!-- Image -->
+                                {% if entry.image_link %}
+                                <div class="col-md-3 text-center">
+                                    <img src="{{ entry.image_link }}" 
+                                         alt="{% trans 'Image for' %} {{ entry.sku }}"
+                                         class="entry-image"
+                                         onerror="this.style.display='none'; this.nextElementSibling.style.display='block';"
+                                         loading="lazy">
+                                    <div style="display: none;" class="text-muted">
+                                        <i class="fas fa-image fa-2x"></i>
+                                        <br><small>{% trans "Image unavailable" %}</small>
+                                    </div>
+                                </div>
+                                {% endif %}
+                            </div>
+
+                            <!-- Hidden content for copying -->
+                            <div id="entry-content-{{ entry.id }}" style="display: none;">
+SKU: {{ entry.sku }}
+Question: {{ entry.question }}
+Answer: {{ entry.answer }}
+Category: {{ entry.category }}
+Keywords: {{ entry.keywords }}
+{% if entry.image_link %}Image: {{ entry.image_link }}{% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+
+            <!-- Pagination -->
+            {% if page_obj.has_other_pages %}
+            <nav aria-label="{% trans 'QA entries pagination' %}">
+                <ul class="pagination justify-content-center">
+                    {% if page_obj.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link" href="?{% if search_query %}search={{ search_query }}&{% endif %}{% if category_filter %}category={{ category_filter }}&{% endif %}{% if sku_filter %}sku={{ sku_filter }}&{% endif %}page={{ page_obj.previous_page_number }}">
+                            <i class="fas fa-chevron-left"></i>
+                        </a>
+                    </li>
+                    {% endif %}
+
+                    {% for page_num in page_obj.paginator.page_range %}
+                    {% if page_num == page_obj.number %}
+                    <li class="page-item active">
+                        <span class="page-link">{{ page_num }}</span>
+                    </li>
+                    {% else %}
+                    <li class="page-item">
+                        <a class="page-link" href="?{% if search_query %}search={{ search_query }}&{% endif %}{% if category_filter %}category={{ category_filter }}&{% endif %}{% if sku_filter %}sku={{ sku_filter }}&{% endif %}page={{ page_num }}">
+                            {{ page_num }}
+                        </a>
+                    </li>
+                    {% endif %}
+                    {% endfor %}
+
+                    {% if page_obj.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="?{% if search_query %}search={{ search_query }}&{% endif %}{% if category_filter %}category={{ category_filter }}&{% endif %}{% if sku_filter %}sku={{ sku_filter }}&{% endif %}page={{ page_obj.next_page_number }}">
+                            <i class="fas fa-chevron-right"></i>
+                        </a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </nav>
+            {% endif %}
+
+        {% else %}
+            <!-- No Entries -->
+            <div class="text-center py-5">
+                <i class="fas fa-database fa-3x text-muted mb-3"></i>
+                <h4>{% trans "No entries found" %}</h4>
+                {% if search_query or category_filter or sku_filter %}
+                    <p class="text-muted">
+                        {% trans "No entries match your search criteria." %}
+                    </p>
+                    <a href="{% url 'semantic_qa:manage_entries' %}" class="btn btn-primary">
+                        <i class="fas fa-times me-2"></i>{% trans "Clear Filters" %}
+                    </a>
+                {% else %}
+                    <p class="text-muted">
+                        {% trans "Start by uploading some QA data." %}
+                    </p>
+                    <a href="{% url 'semantic_qa:upload_excel_page' %}" class="btn btn-primary">
+                        <i class="fas fa-upload me-2"></i>{% trans "Upload Excel File" %}
+                    </a>
+                {% endif %}
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Copy entry functionality
+    document.querySelectorAll('.copy-entry').forEach(button => {
+        button.addEventListener('click', function(e) {
+            e.preventDefault();
+            const entryId = this.dataset.entryId;
+            const content = document.getElementById(`entry-content-${entryId}`).textContent;
+            
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(content).then(() => {
+                    showToast('{% trans "Entry copied to clipboard!" %}', 'success');
+                }).catch(() => {
+                    showToast('{% trans "Failed to copy" %}', 'error');
+                });
+            } else {
+                // Fallback
+                const textArea = document.createElement('textarea');
+                textArea.value = content;
+                document.body.appendChild(textArea);
+                textArea.select();
+                try {
+                    document.execCommand('copy');
+                    showToast('{% trans "Entry copied to clipboard!" %}', 'success');
+                } catch (err) {
+                    showToast('{% trans "Failed to copy" %}', 'error');
+                }
+                document.body.removeChild(textArea);
+            }
+        });
+    });
+
+    // Auto-submit form on filter change
+    document.getElementById('category').addEventListener('change', function() {
+        document.getElementById('filterForm').submit();
+    });
+
+    // Show toast notification
+    function showToast(message, type = 'info') {
+        const toast = document.createElement('div');
+        toast.className = `alert alert-${type === 'error' ? 'danger' : type} position-fixed fade show`;
+        toast.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 250px;';
+        toast.innerHTML = `
+            <div class="d-flex align-items-center">
+                <i class="fas fa-${type === 'success' ? 'check' : type === 'error' ? 'times' : 'info'}-circle me-2"></i>
+                ${message}
+                <button type="button" class="btn-close ms-auto" onclick="this.closest('.alert').remove()"></button>
+            </div>
+        `;
+        
+        document.body.appendChild(toast);
+        
+        setTimeout(() => {
+            if (toast.parentNode) {
+                toast.remove();
+            }
+        }, 5000);
+    }
+});
+</script>
+{% endblock %}

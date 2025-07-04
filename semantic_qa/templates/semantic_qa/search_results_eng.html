@@ -1,0 +1,288 @@
+<!-- semantic_qa/templates/semantic_qa/search_results.html -->
+{% extends 'semantic_qa/base.html' %}
+{% load static %}
+{% load i18n %}
+
+{% block title %}{% trans "Search Results" %} - {{ query }}{% endblock %}
+
+{% block extra_css %}
+<style>
+.result-card {
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+.result-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+}
+.image-container {
+    max-height: 200px;
+    overflow: hidden;
+    border-radius: 8px;
+}
+.image-container img {
+    width: 100%;
+    height: auto;
+    object-fit: cover;
+}
+.relevance-score {
+    font-size: 0.8em;
+}
+.match-type-badge {
+    font-size: 0.7em;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <!-- Search Header -->
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h2>{% trans "Search Results" %}</h2>
+                <p class="text-muted mb-0">
+                    {% trans "Query:" %} <strong>"{{ query }}"</strong>
+                    {% if results.total_results %}
+                    - {{ results.total_results }} {% trans "results found" %} 
+                    ({{ results.response_time|floatformat:3 }}s)
+                    {% endif %}
+                </p>
+            </div>
+            <a href="{% url 'semantic_qa:index' %}" class="btn btn-outline-primary">
+                <i class="fas fa-arrow-left me-2"></i>{% trans "New Search" %}
+            </a>
+        </div>
+
+        <!-- Search Again -->
+        <div class="card mb-4">
+            <div class="card-body py-3">
+                <form method="get" action="{% url 'semantic_qa:search_results' %}" class="d-flex">
+                    <input type="text" 
+                           class="form-control me-2" 
+                           name="q" 
+                           value="{{ query }}"
+                           placeholder="{% trans 'Refine your search...' %}">
+                    <select class="form-select me-2" name="lang" style="width: auto;">
+                        {% for code, name in supported_languages.items %}
+                        <option value="{{ code }}" {% if code == language %}selected{% endif %}>
+                            {{ name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-search"></i>
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        {% if results.results %}
+            <!-- Results -->
+            {% for result in formatted_results %}
+            <div class="card result-card mb-4">
+                <div class="card-body">
+                    <div class="row">
+                        <!-- Text Content -->
+                        <div class="col-md-{% if result.has_image %}8{% else %}12{% endif %}">
+                            <!-- Header with SKU and badges -->
+                            <div class="d-flex justify-content-between align-items-start mb-3">
+                                <div>
+                                    <h5 class="card-title mb-1">
+                                        <span class="badge bg-primary me-2">{{ result.sku }}</span>
+                                        {{ result.question }}
+                                    </h5>
+                                    <div class="mb-2">
+                                        <span class="badge bg-secondary me-1 match-type-badge">
+                                            {{ result.match_type|title }}
+                                        </span>
+                                        <span class="badge bg-info me-1 match-type-badge">
+                                            {{ result.category_display }}
+                                        </span>
+                                        <span class="badge bg-success relevance-score">
+                                            {{ result.display_score }} {% trans "relevance" %}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Answer -->
+                            <div class="answer-content">
+                                <h6 class="text-muted mb-2">{% trans "Answer:" %}</h6>
+                                <p class="card-text">{{ result.answer }}</p>
+                            </div>
+
+                            <!-- Additional Actions -->
+                            <div class="mt-3">
+                                {% if result.image_link %}
+                                <button class="btn btn-sm btn-outline-info me-2" 
+                                        onclick="toggleImage('{{ result.id|escapejs }}')">
+                                    <i class="fas fa-image me-1"></i>{% trans "Show/Hide Image" %}
+                                </button>
+                                {% endif %}
+                                
+                                <button class="btn btn-sm btn-outline-secondary copy-btn" 
+                                        data-result-id="{{ result.id }}">
+                                    <i class="fas fa-copy me-1"></i>{% trans "Copy" %}
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Image -->
+                        {% if result.has_image %}
+                        <div class="col-md-4">
+                            <div class="image-container" id="image-container-{{ result.id }}">
+                                <img src="{{ result.image_link }}" 
+                                     alt="{% trans 'Image for' %} {{ result.sku }}"
+                                     class="img-fluid"
+                                     onerror="this.style.display='none'; document.getElementById('image-error-{{ result.id }}').style.display='block';"
+                                     loading="lazy">
+                                <div id="image-error-{{ result.id }}" style="display: none;" class="text-center p-3 bg-light">
+                                    <i class="fas fa-image text-muted"></i>
+                                    <p class="text-muted small mb-0">{% trans "Image unavailable" %}</p>
+                                    <small class="text-muted">{{ result.image_link|truncatechars:50 }}</small>
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Hidden content for copying -->
+                    <div id="result-{{ result.id }}" style="display: none;">
+                        SKU: {{ result.sku }}
+                        Question: {{ result.question }}
+                        Answer: {{ result.answer }}
+                        {% if result.image_link %}Image: {{ result.image_link }}{% endif %}
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+
+            <!-- Pagination -->
+            {% if page_obj.has_other_pages %}
+            <nav aria-label="{% trans 'Search results pagination' %}">
+                <ul class="pagination justify-content-center">
+                    {% if page_obj.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link" href="?q={{ query }}&lang={{ language }}&page={{ page_obj.previous_page_number }}">
+                            <i class="fas fa-chevron-left"></i>
+                        </a>
+                    </li>
+                    {% endif %}
+
+                    {% for page_num in page_obj.paginator.page_range %}
+                    {% if page_num == page_obj.number %}
+                    <li class="page-item active">
+                        <span class="page-link">{{ page_num }}</span>
+                    </li>
+                    {% else %}
+                    <li class="page-item">
+                        <a class="page-link" href="?q={{ query }}&lang={{ language }}&page={{ page_num }}">
+                            {{ page_num }}
+                        </a>
+                    </li>
+                    {% endif %}
+                    {% endfor %}
+
+                    {% if page_obj.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="?q={{ query }}&lang={{ language }}&page={{ page_obj.next_page_number }}">
+                            <i class="fas fa-chevron-right"></i>
+                        </a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </nav>
+            {% endif %}
+
+        {% else %}
+            <!-- No Results -->
+            <div class="text-center py-5">
+                <i class="fas fa-search fa-3x text-muted mb-3"></i>
+                <h4>{% trans "No results found" %}</h4>
+                <p class="text-muted">
+                    {% trans "We couldn't find any results for your search query." %}
+                </p>
+                <div class="mt-4">
+                    <h6>{% trans "Search suggestions:" %}</h6>
+                    <ul class="list-unstyled text-muted">
+                        <li>• {% trans "Try different keywords" %}</li>
+                        <li>• {% trans "Check for typos in SKU or product names" %}</li>
+                        <li>• {% trans "Use more general terms" %}</li>
+                        <li>• {% trans "Try searching in a different language" %}</li>
+                    </ul>
+                </div>
+                <a href="{% url 'semantic_qa:index' %}" class="btn btn-primary mt-3">
+                    <i class="fas fa-home me-2"></i>{% trans "Back to Home" %}
+                </a>
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function toggleImage(resultId) {
+    const container = document.getElementById('image-container-' + resultId);
+    if (container.style.display === 'none') {
+        container.style.display = 'block';
+    } else {
+        container.style.display = 'none';
+    }
+}
+
+function copyToClipboard(elementId) {
+    const element = document.getElementById(elementId);
+    const text = element.textContent;
+    
+    if (navigator.clipboard) {
+        navigator.clipboard.writeText(text).then(function() {
+            showToast('{% trans "Copied to clipboard!" %}');
+        });
+    } else {
+        // Fallback for older browsers
+        const textArea = document.createElement('textarea');
+        textArea.value = text;
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        try {
+            document.execCommand('copy');
+            showToast('{% trans "Copied to clipboard!" %}');
+        } catch (err) {
+            showToast('{% trans "Copy failed" %}');
+        }
+        document.body.removeChild(textArea);
+    }
+}
+
+function showToast(message) {
+    // Create and show a simple toast notification
+    const toast = document.createElement('div');
+    toast.className = 'alert alert-success position-fixed';
+    toast.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 200px;';
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    
+    setTimeout(() => {
+        toast.remove();
+    }, 3000);
+}
+
+// Auto-hide images on mobile devices to save space
+if (window.innerWidth < 768) {
+    document.querySelectorAll('[id^="image-container-"]').forEach(container => {
+        container.style.display = 'none';
+    });
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.copy-btn').forEach(button => {
+        button.addEventListener('click', function() {
+            const resultId = this.getAttribute('data-result-id');
+            copyToClipboard('result-' + resultId);
+        });
+    });
+});
+</script>
+{% endblock %}

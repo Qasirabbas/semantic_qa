@@ -1,0 +1,523 @@
+<!-- semantic_qa/templates/semantic_qa/upload_excel.html -->
+{% extends 'semantic_qa/base.html' %}
+{% load static %}
+{% load i18n %}
+
+{% block title %}上传Excel文件{% endblock %}
+
+{% block extra_css %}
+<style>
+.file-drop-zone {
+    border: 2px dashed #007bff;
+    border-radius: 10px;
+    padding: 40px;
+    text-align: center;
+    background-color: #f8f9fa;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.file-drop-zone:hover,
+.file-drop-zone.drag-over {
+    border-color: #0056b3;
+    background-color: #e3f2fd;
+}
+
+.file-info {
+    background-color: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    margin-top: 15px;
+}
+
+.template-download {
+    background: linear-gradient(135deg, #28a745, #20c997);
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 8px;
+    transition: all 0.3s ease;
+}
+
+.template-download:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(40, 167, 69, 0.3);
+    color: white;
+}
+
+.column-examples {
+    background-color: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    padding: 15px;
+    margin: 15px 0;
+}
+
+.column-examples h6 {
+    color: #495057;
+    margin-bottom: 10px;
+}
+
+.column-examples .row {
+    margin-bottom: 8px;
+}
+
+.column-examples .col-4 {
+    font-weight: 600;
+    color: #007bff;
+}
+
+.column-examples .col-8 {
+    color: #6c757d;
+    font-size: 0.9em;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-10">
+        <div class="card shadow-lg">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0">
+                    <i class="fas fa-upload me-2"></i>上传Excel文件
+                </h4>
+            </div>
+            <div class="card-body">
+                <!-- Instructions -->
+                <div class="alert alert-info">
+                    <h6 class="alert-heading">
+                        <i class="fas fa-info-circle me-2"></i>上传说明
+                    </h6>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <ul class="mb-0">
+                                <li>上传包含问答数据的Excel文件 (.xlsx 或 .xls)</li>
+                                <li>必需列：SKU、Question、Answer</li>
+                                <li>可选列：Image_Link、Category、Keywords</li>
+                            </ul>
+                        </div>
+                        <div class="col-md-6">
+                            <ul class="mb-0">
+                                <li>最大文件大小：10MB</li>
+                                <li>列名不区分大小写</li>
+                                <li>列名可以使用空格或下划线</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Column Name Examples -->
+                <div class="column-examples">
+                    <h6><i class="fas fa-table me-2"></i>支持的列名变体：</h6>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="row">
+                                <div class="col-4">SKU:</div>
+                                <div class="col-8">SKU, sku, product_id, Product ID</div>
+                            </div>
+                            <div class="row">
+                                <div class="col-4">Question:</div>
+                                <div class="col-8">Question, question, Q, query, 问题, 内容</div>
+                            </div>
+                            <div class="row">
+                                <div class="col-4">Answer:</div>
+                                <div class="col-8">Answer, answer, A, response, 答案, 回答</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="row">
+                                <div class="col-4">Image_Link:</div>
+                                <div class="col-8">Image Link, image_url, img_link, 图片链接</div>
+                            </div>
+                            <div class="row">
+                                <div class="col-4">Category:</div>
+                                <div class="col-8">Category, category, type, cat, 分类, 类别</div>
+                            </div>
+                            <div class="row">
+                                <div class="col-4">Keywords:</div>
+                                <div class="col-8">Keywords, keyword, tags, 关键词, 标签</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Download Template -->
+                <div class="text-center mb-4">
+                    <a href="{% url 'semantic_qa:download_template' %}" 
+                       class="btn template-download me-3">
+                        <i class="fas fa-download me-2"></i>下载Excel模板
+                    </a>
+                    <small class="d-block mt-2 text-muted">
+                        下载包含说明和示例的样本模板
+                    </small>
+                </div>
+
+                <hr>
+
+                <!-- Upload Form -->
+                <form method="post" enctype="multipart/form-data" id="uploadForm">
+                    {% csrf_token %}
+                    
+                    <!-- File Drop Zone -->
+                    <div class="file-drop-zone mb-3" onclick="document.getElementById('id_excel_file').click()">
+                        <i class="fas fa-cloud-upload-alt fa-3x text-primary mb-3"></i>
+                        <h5>点击选择文件或拖拽文件到此处</h5>
+                        <p class="text-muted mb-0">
+                            支持格式：.xlsx, .xls (最大：10MB)
+                        </p>
+                        {{ form.excel_file }}
+                    </div>
+
+                    <!-- File Preview Area -->
+                    <div class="file-preview"></div>
+
+                    <!-- Options -->
+                    <div class="form-group mb-3">
+                        <div class="form-check">
+                            {{ form.overwrite_existing }}
+                            <label class="form-check-label" for="{{ form.overwrite_existing.id_for_label }}">
+                                {{ form.overwrite_existing.label }}
+                                <small class="text-muted d-block">如果选中，相同SKU+问题的现有条目将被更新</small>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Upload Button -->
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary btn-lg" id="uploadBtn">
+                            <i class="fas fa-upload me-2"></i>上传并处理文件
+                        </button>
+                    </div>
+                </form>
+
+                <!-- Progress Bar (hidden by default) -->
+                <div class="progress mt-3" id="uploadProgress" style="display: none;">
+                    <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                         role="progressbar" style="width: 0%"></div>
+                </div>
+
+                <!-- Error Display Area -->
+                <div id="errorDisplay" class="mt-3" style="display: none;"></div>
+            </div>
+        </div>
+
+        <!-- Sample Data Display -->
+        {% if sample_entries %}
+        <div class="card mt-4">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-table me-2"></i>当前数据样例
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>SKU</th>
+                                <th>问题</th>
+                                <th>答案</th>
+                                <th>分类</th>
+                                <th>图片</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for entry in sample_entries %}
+                            <tr>
+                                <td><span class="badge bg-primary">{{ entry.sku }}</span></td>
+                                <td>{{ entry.question|truncatechars:50 }}</td>
+                                <td>{{ entry.answer|truncatechars:60 }}</td>
+                                <td>{{ entry.category|default:"general" }}</td>
+                                <td>
+                                    {% if entry.image_link %}
+                                        <i class="fas fa-image text-success"></i>
+                                    {% else %}
+                                        <i class="fas fa-times text-muted"></i>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <small class="text-muted">
+                    这显示了您当前数据的样本。新上传将添加到现有条目或更新现有条目。
+                </small>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Quick Actions -->
+        <div class="card mt-4">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-tools me-2"></i>快速操作
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3 mb-2">
+                        <a href="{% url 'semantic_qa:manage_entries' %}" class="btn btn-outline-primary w-100">
+                            <i class="fas fa-database me-2"></i>管理条目
+                        </a>
+                    </div>
+                    <div class="col-md-3 mb-2">
+                        <a href="{% url 'semantic_qa:admin_dashboard' %}" class="btn btn-outline-info w-100">
+                            <i class="fas fa-chart-bar me-2"></i>查看分析
+                        </a>
+                    </div>
+                    <div class="col-md-3 mb-2">
+                        <a href="{% url 'semantic_qa:index' %}" class="btn btn-outline-success w-100">
+                            <i class="fas fa-search me-2"></i>测试搜索
+                        </a>
+                    </div>
+                    <div class="col-md-3 mb-2">
+                        <a href="{% url 'semantic_qa:export_data' %}" class="btn btn-outline-warning w-100">
+                            <i class="fas fa-download me-2"></i>导出数据
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('uploadForm');
+    const fileInput = document.getElementById('id_excel_file');
+    const uploadBtn = document.getElementById('uploadBtn');
+    const progressBar = document.getElementById('uploadProgress');
+    const dropZone = document.querySelector('.file-drop-zone');
+    const errorDisplay = document.getElementById('errorDisplay');
+
+    // Hide the default file input
+    fileInput.style.display = 'none';
+
+    // Handle file selection
+    fileInput.addEventListener('change', function(e) {
+        if (e.target.files.length > 0) {
+            const file = e.target.files[0];
+            showFilePreview(file);
+        }
+    });
+
+    // Handle form submission with AJAX for better error handling
+    form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        if (!fileInput.files.length) {
+            showError('请选择要上传的文件');
+            return;
+        }
+
+        uploadFile();
+    });
+
+    // Drag and drop functionality
+    dropZone.addEventListener('dragover', handleDragOver);
+    dropZone.addEventListener('dragenter', handleDragEnter);
+    dropZone.addEventListener('dragleave', handleDragLeave);
+    dropZone.addEventListener('drop', handleDrop);
+
+    function handleDragOver(e) {
+        e.preventDefault();
+        e.stopPropagation();
+    }
+
+    function handleDragEnter(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        dropZone.classList.add('drag-over');
+    }
+
+    function handleDragLeave(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        dropZone.classList.remove('drag-over');
+    }
+
+    function handleDrop(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        dropZone.classList.remove('drag-over');
+        
+        const files = e.dataTransfer.files;
+        if (files.length > 0) {
+            fileInput.files = files;
+            showFilePreview(files[0]);
+        }
+    }
+
+    function uploadFile() {
+        const formData = new FormData(form);
+        
+        // Show progress bar
+        progressBar.style.display = 'block';
+        uploadBtn.disabled = true;
+        uploadBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>处理中...';
+        errorDisplay.style.display = 'none';
+
+        // Simulate progress animation
+        let progress = 0;
+        const progressInterval = setInterval(() => {
+            progress += Math.random() * 15;
+            if (progress > 90) progress = 90;
+            progressBar.querySelector('.progress-bar').style.width = progress + '%';
+        }, 300);
+
+        fetch('{% url "semantic_qa:upload_excel" %}', {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            clearInterval(progressInterval);
+            progressBar.querySelector('.progress-bar').style.width = '100%';
+            
+            if (data.success) {
+                showSuccess(data);
+                setTimeout(() => {
+                    window.location.href = '{% url "semantic_qa:manage_entries" %}';
+                }, 2000);
+            } else {
+                showError(data.error, data.suggestion, data.error_details);
+            }
+        })
+        .catch(error => {
+            clearInterval(progressInterval);
+            console.error('Upload error:', error);
+            showError('上传失败，请重试。');
+        })
+        .finally(() => {
+            uploadBtn.disabled = false;
+            uploadBtn.innerHTML = '<i class="fas fa-upload me-2"></i>上传并处理文件';
+            setTimeout(() => {
+                progressBar.style.display = 'none';
+                progressBar.querySelector('.progress-bar').style.width = '0%';
+            }, 2000);
+        });
+    }
+
+    function showFilePreview(file) {
+        const previewContainer = document.querySelector('.file-preview');
+        
+        // Validate file type
+        const allowedTypes = ['.xlsx', '.xls'];
+        const fileExtension = '.' + file.name.split('.').pop().toLowerCase();
+        
+        if (!allowedTypes.includes(fileExtension)) {
+            showError('文件类型无效，请上传Excel文件 (.xlsx 或 .xls)');
+            fileInput.value = '';
+            return;
+        }
+
+        // Validate file size (10MB)
+        if (file.size > 10 * 1024 * 1024) {
+            showError('文件大小必须小于10MB');
+            fileInput.value = '';
+            return;
+        }
+
+        // Show file info
+        previewContainer.innerHTML = `
+            <div class="file-info p-3">
+                <div class="d-flex align-items-center">
+                    <i class="fas fa-file-excel text-success fa-2x me-3"></i>
+                    <div class="flex-grow-1">
+                        <h6 class="mb-1">${file.name}</h6>
+                        <small class="text-muted">${formatFileSize(file.size)}</small>
+                    </div>
+                    <button type="button" class="btn btn-outline-danger btn-sm" 
+                            onclick="clearFile()">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+        `;
+        
+        errorDisplay.style.display = 'none';
+    }
+
+    function showError(message, suggestion, details) {
+        let html = `
+            <div class="alert alert-danger">
+                <h6><i class="fas fa-exclamation-triangle me-2"></i>上传错误</h6>
+                <p class="mb-2">${message}</p>
+        `;
+        
+        if (suggestion) {
+            html += `<p class="mb-2"><strong>建议：</strong> ${suggestion}</p>`;
+        }
+        
+        if (details && details.length > 0) {
+            html += `
+                <details class="mt-2">
+                    <summary>错误详情 (${details.length} 个错误)</summary>
+                    <ul class="mt-2 mb-0">
+            `;
+            details.forEach(detail => {
+                html += `<li><small>${detail}</small></li>`;
+            });
+            html += `</ul></details>`;
+        }
+        
+        html += `
+                <hr class="my-2">
+                <div class="d-flex gap-2">
+                    <a href="{% url 'semantic_qa:download_template' %}" class="btn btn-sm btn-outline-primary">
+                        <i class="fas fa-download me-1"></i>下载模板
+                    </a>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="clearFile()">
+                        <i class="fas fa-redo me-1"></i>重新尝试
+                    </button>
+                </div>
+            </div>
+        `;
+        
+        errorDisplay.innerHTML = html;
+        errorDisplay.style.display = 'block';
+    }
+
+    function showSuccess(data) {
+        const html = `
+            <div class="alert alert-success">
+                <h6><i class="fas fa-check-circle me-2"></i>上传成功</h6>
+                <p class="mb-2">${data.message}</p>
+                <ul class="mb-2">
+                    <li>处理的总条目数：${data.total_entries}</li>
+                    <li>新建条目：${data.created}</li>
+                    <li>更新条目：${data.updated}</li>
+                    ${data.errors > 0 ? `<li class="text-warning">错误：${data.errors}</li>` : ''}
+                </ul>
+                <p class="mb-0">正在跳转到管理条目页面...</p>
+            </div>
+        `;
+        
+        errorDisplay.innerHTML = html;
+        errorDisplay.style.display = 'block';
+    }
+
+    function formatFileSize(bytes) {
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+
+    // Global function to clear file
+    window.clearFile = function() {
+        fileInput.value = '';
+        document.querySelector('.file-preview').innerHTML = '';
+        errorDisplay.style.display = 'none';
+    };
+});
+</script>
+{% endblock %}

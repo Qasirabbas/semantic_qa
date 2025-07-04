@@ -1,0 +1,562 @@
+<!-- semantic_qa/templates/semantic_qa/manage_documents.html -->
+{% extends 'semantic_qa/base.html' %}
+{% load static %}
+{% load i18n %}
+
+{% block title %}管理文档{% endblock %}
+
+{% block extra_css %}
+<style>
+.document-card {
+    transition: transform 0.2s, box-shadow 0.2s;
+    border-left: 4px solid #007bff;
+}
+
+.document-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+}
+
+.document-card.pdf {
+    border-left-color: #dc3545;
+}
+
+.document-card.image {
+    border-left-color: #28a745;
+}
+
+.document-card.link {
+    border-left-color: #17a2b8;
+}
+
+.search-filters {
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 20px;
+}
+
+.status-badge.completed {
+    background-color: #28a745;
+}
+
+.status-badge.processing {
+    background-color: #ffc107;
+}
+
+.status-badge.failed {
+    background-color: #dc3545;
+}
+
+.status-badge.pending {
+    background-color: #6c757d;
+}
+
+.document-preview {
+    max-height: 80px;
+    max-width: 100px;
+    object-fit: cover;
+    border-radius: 4px;
+}
+
+@media (max-width: 768px) {
+    .search-filters .row > div {
+        margin-bottom: 10px;
+    }
+    
+    .document-card {
+        margin-bottom: 15px;
+    }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <!-- Header -->
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h2>
+                    <i class="fas fa-folder text-primary me-2"></i>管理文档
+                </h2>
+                <p class="text-muted mb-0">
+                    总文档数：<strong>{{ total_documents }}</strong>
+                    {% if processing_stats.completed %}
+                    | 已处理：<strong>{{ processing_stats.completed }}</strong>
+                    {% endif %}
+                </p>
+            </div>
+            <div>
+                <a href="{% url 'semantic_qa:upload_document_page' %}" class="btn btn-success me-2">
+                    <i class="fas fa-upload me-1"></i>上传文档
+                </a>
+                <div class="btn-group">
+                    <button type="button" class="btn btn-outline-primary dropdown-toggle" data-bs-toggle="dropdown">
+                        <i class="fas fa-tools me-1"></i>批量操作
+                    </button>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="#" onclick="selectAllDocuments()">
+                            <i class="fas fa-check-square me-2"></i>全选
+                        </a></li>
+                        <li><a class="dropdown-item" href="#" onclick="reprocessSelected()">
+                            <i class="fas fa-redo me-2"></i>重新处理选中
+                        </a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item text-danger" href="#" onclick="deleteSelected()">
+                            <i class="fas fa-trash me-2"></i>删除选中
+                        </a></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Search and Filters -->
+        <div class="search-filters">
+            <form method="get" id="filterForm">
+                <div class="row">
+                    <div class="col-md-3 mb-2">
+                        <label for="search" class="form-label">搜索</label>
+                        <input type="text" class="form-control" id="search" name="search" 
+                               value="{{ search_query }}" 
+                               placeholder="在标题、内容中搜索...">
+                    </div>
+                    <div class="col-md-2 mb-2">
+                        <label for="document_type" class="form-label">文档类型</label>
+                        <select class="form-control" id="document_type" name="document_type">
+                            <option value="">全部类型</option>
+                            <option value="pdf" {% if document_type == 'pdf' %}selected{% endif %}>PDF</option>
+                            <option value="image" {% if document_type == 'image' %}selected{% endif %}>图片</option>
+                            <option value="link" {% if document_type == 'link' %}selected{% endif %}>网页</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2 mb-2">
+                        <label for="processing_status" class="form-label">处理状态</label>
+                        <select class="form-control" id="processing_status" name="processing_status">
+                            <option value="">全部状态</option>
+                            <option value="pending" {% if processing_status == 'pending' %}selected{% endif %}>等待中</option>
+                            <option value="processing" {% if processing_status == 'processing' %}selected{% endif %}>处理中</option>
+                            <option value="completed" {% if processing_status == 'completed' %}selected{% endif %}>已完成</option>
+                            <option value="failed" {% if processing_status == 'failed' %}selected{% endif %}>失败</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3 mb-2">
+                        <label for="category" class="form-label">分类</label>
+                        <input type="text" class="form-control" id="category" name="category" 
+                               value="{{ category_filter }}" 
+                               placeholder="按分类筛选">
+                    </div>
+                    <div class="col-md-2 mb-2">
+                        <label class="form-label">&nbsp;</label>
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-search me-1"></i>筛选
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        <!-- Statistics Cards -->
+        <div class="row mb-4">
+            {% for stat in processing_stats %}
+            <div class="col-md-3 mb-3">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <h4 class="card-title">{{ stat.count }}</h4>
+                        <p class="card-text">
+                            {% if stat.processing_status == 'completed' %}已完成
+                            {% elif stat.processing_status == 'processing' %}处理中
+                            {% elif stat.processing_status == 'failed' %}处理失败
+                            {% elif stat.processing_status == 'pending' %}等待处理
+                            {% else %}{{ stat.processing_status }}
+                            {% endif %}
+                        </p>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- Documents List -->
+        {% if page_obj %}
+            <!-- Pagination Info -->
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <div class="text-muted">
+                    显示第 {{ page_obj.start_index }} 到 {{ page_obj.end_index }} 条，共 {{ page_obj.paginator.count }} 条记录
+                </div>
+                
+                {% if search_query or document_type or processing_status or category_filter %}
+                <div>
+                    <a href="{% url 'semantic_qa:manage_documents' %}" class="btn btn-sm btn-outline-secondary">
+                        <i class="fas fa-times me-1"></i>清除筛选
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Documents Grid -->
+            <div class="row">
+                {% for document in page_obj %}
+                <div class="col-12 mb-3">
+                    <div class="card document-card {{ document.document_type }}">
+                        <div class="card-body">
+                            <div class="row align-items-center">
+                                <!-- Checkbox -->
+                                <div class="col-md-1">
+                                    <div class="form-check">
+                                        <input class="form-check-input document-checkbox" type="checkbox" 
+                                               value="{{ document.id }}" id="doc-{{ document.id }}">
+                                    </div>
+                                </div>
+                                
+                                <!-- Document Info -->
+                                <div class="col-md-{% if document.document_type == 'image' and document.original_file %}7{% else %}8{% endif %}">
+                                    <!-- Title and Type -->
+                                    <div class="d-flex align-items-center mb-2">
+                                        {% if document.document_type == 'pdf' %}
+                                            <i class="fas fa-file-pdf text-danger fa-2x me-3"></i>
+                                        {% elif document.document_type == 'image' %}
+                                            <i class="fas fa-image text-success fa-2x me-3"></i>
+                                        {% elif document.document_type == 'link' %}
+                                            <i class="fas fa-link text-info fa-2x me-3"></i>
+                                        {% else %}
+                                            <i class="fas fa-file text-secondary fa-2x me-3"></i>
+                                        {% endif %}
+                                        
+                                        <div>
+                                            <h5 class="card-title mb-1">{{ document.title }}</h5>
+                                            <div>
+                                                <span class="badge bg-secondary me-1">{{ document.get_document_type_display }}</span>
+                                                {% if document.category %}
+                                                <span class="badge bg-info me-1">{{ document.category }}</span>
+                                                {% endif %}
+                                                <span class="badge status-badge {{ document.processing_status }}">
+                                                    {% if document.processing_status == 'completed' %}✓ 已完成
+                                                    {% elif document.processing_status == 'processing' %}⏳ 处理中
+                                                    {% elif document.processing_status == 'failed' %}✗ 失败
+                                                    {% elif document.processing_status == 'pending' %}⏸ 等待中
+                                                    {% else %}{{ document.processing_status }}
+                                                    {% endif %}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Details -->
+                                    <div class="text-muted small">
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <i class="fas fa-calendar me-1"></i>{{ document.created_at|date:"M d, Y H:i" }}
+                                                {% if document.file_size %}
+                                                <br><i class="fas fa-weight me-1"></i>{{ document.file_size|filesizeformat }}
+                                                {% endif %}
+                                            </div>
+                                            <div class="col-md-6">
+                                                {% if document.page_count %}
+                                                <i class="fas fa-file-alt me-1"></i>{{ document.page_count }} 页
+                                                <br>
+                                                {% endif %}
+                                                {% if document.language_detected %}
+                                                <i class="fas fa-language me-1"></i>{{ document.language_detected|upper }}
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Extracted Text Preview -->
+                                    {% if document.extracted_text %}
+                                    <div class="mt-2">
+                                        <small class="text-muted">
+                                            <strong>内容预览：</strong>
+                                            {{ document.extracted_text|truncatechars:150 }}
+                                        </small>
+                                    </div>
+                                    {% endif %}
+                                </div>
+
+                                <!-- Preview Image -->
+                                {% if document.document_type == 'image' and document.original_file %}
+                                <div class="col-md-2 text-center">
+                                    <img src="{{ document.original_file.url }}" 
+                                         alt="Preview" 
+                                         class="document-preview"
+                                         onclick="openImageModal('{{ document.original_file.url }}', '{{ document.title }}')"
+                                         style="cursor: pointer;">
+                                </div>
+                                {% endif %}
+
+                                <!-- Actions -->
+                                <div class="col-md-2 text-end">
+                                    <div class="btn-group-vertical">
+                                        <a href="{% url 'semantic_qa:document_detail' document.id %}" 
+                                           class="btn btn-sm btn-outline-info mb-1">
+                                            <i class="fas fa-eye me-1"></i>查看
+                                        </a>
+                                        
+                                        {% if document.processing_status == 'failed' or document.processing_status == 'pending' %}
+                                        <button class="btn btn-sm btn-outline-warning mb-1" 
+                                                onclick="reprocessDocument({{ document.id }})">
+                                            <i class="fas fa-redo me-1"></i>重处理
+                                        </button>
+                                        {% endif %}
+                                        
+                                        {% if document.original_file %}
+                                        <a href="{{ document.original_file.url }}" 
+                                           class="btn btn-sm btn-outline-secondary mb-1" 
+                                           target="_blank">
+                                            <i class="fas fa-download me-1"></i>下载
+                                        </a>
+                                        {% elif document.source_url %}
+                                        <a href="{{ document.source_url }}" 
+                                           class="btn btn-sm btn-outline-secondary mb-1" 
+                                           target="_blank">
+                                            <i class="fas fa-external-link-alt me-1"></i>访问
+                                        </a>
+                                        {% endif %}
+                                        
+                                        <a href="{% url 'semantic_qa:delete_document' document.id %}" 
+                                           class="btn btn-sm btn-outline-danger"
+                                           onclick="return confirm('确定要删除这个文档吗？')">
+                                            <i class="fas fa-trash me-1"></i>删除
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+
+            <!-- Pagination -->
+            {% if page_obj.has_other_pages %}
+            <nav aria-label="文档分页">
+                <ul class="pagination justify-content-center">
+                    {% if page_obj.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link" href="?{% if search_query %}search={{ search_query }}&{% endif %}{% if document_type %}document_type={{ document_type }}&{% endif %}{% if processing_status %}processing_status={{ processing_status }}&{% endif %}{% if category_filter %}category={{ category_filter }}&{% endif %}page={{ page_obj.previous_page_number }}">
+                            <i class="fas fa-chevron-left"></i>
+                        </a>
+                    </li>
+                    {% endif %}
+
+                    {% for page_num in page_obj.paginator.page_range %}
+                    {% if page_num == page_obj.number %}
+                    <li class="page-item active">
+                        <span class="page-link">{{ page_num }}</span>
+                    </li>
+                    {% else %}
+                    <li class="page-item">
+                        <a class="page-link" href="?{% if search_query %}search={{ search_query }}&{% endif %}{% if document_type %}document_type={{ document_type }}&{% endif %}{% if processing_status %}processing_status={{ processing_status }}&{% endif %}{% if category_filter %}category={{ category_filter }}&{% endif %}page={{ page_num }}">
+                            {{ page_num }}
+                        </a>
+                    </li>
+                    {% endif %}
+                    {% endfor %}
+
+                    {% if page_obj.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="?{% if search_query %}search={{ search_query }}&{% endif %}{% if document_type %}document_type={{ document_type }}&{% endif %}{% if processing_status %}processing_status={{ processing_status }}&{% endif %}{% if category_filter %}category={{ category_filter }}&{% endif %}page={{ page_obj.next_page_number }}">
+                            <i class="fas fa-chevron-right"></i>
+                        </a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </nav>
+            {% endif %}
+
+        {% else %}
+            <!-- No Documents -->
+            <div class="text-center py-5">
+                <i class="fas fa-folder-open fa-3x text-muted mb-3"></i>
+                <h4>暂无文档</h4>
+                {% if search_query or document_type or processing_status or category_filter %}
+                    <p class="text-muted">
+                        没有找到符合搜索条件的文档。
+                    </p>
+                    <a href="{% url 'semantic_qa:manage_documents' %}" class="btn btn-primary">
+                        <i class="fas fa-times me-2"></i>清除筛选
+                    </a>
+                {% else %}
+                    <p class="text-muted">
+                        开始上传一些文档吧。
+                    </p>
+                    <a href="{% url 'semantic_qa:upload_document_page' %}" class="btn btn-primary">
+                        <i class="fas fa-upload me-2"></i>上传文档
+                    </a>
+                {% endif %}
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Image Modal -->
+<div class="modal fade" id="imageModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="imageModalTitle">图片预览</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body text-center">
+                <img id="modalImage" src="" alt="" class="img-fluid">
+            </div>
+            <div class="modal-footer">
+                <a id="modalImageLink" href="" target="_blank" class="btn btn-primary">
+                    <i class="fas fa-external-link-alt me-1"></i>在新窗口打开
+                </a>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Auto-submit form on filter change
+    document.getElementById('document_type').addEventListener('change', function() {
+        document.getElementById('filterForm').submit();
+    });
+    
+    document.getElementById('processing_status').addEventListener('change', function() {
+        document.getElementById('filterForm').submit();
+    });
+});
+
+// Select all documents
+function selectAllDocuments() {
+    const checkboxes = document.querySelectorAll('.document-checkbox');
+    const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+    
+    checkboxes.forEach(checkbox => {
+        checkbox.checked = !allChecked;
+    });
+    
+    showToast(allChecked ? '已取消全选' : '已全选所有文档', 'info');
+}
+
+// Reprocess selected documents
+function reprocessSelected() {
+    const selected = getSelectedDocuments();
+    if (selected.length === 0) {
+        showToast('请先选择要重新处理的文档', 'warning');
+        return;
+    }
+    
+    if (confirm(`确定要重新处理选中的 ${selected.length} 个文档吗？`)) {
+        // Implementation for batch reprocessing
+        showToast(`正在重新处理 ${selected.length} 个文档...`, 'info');
+        // Here you would make API calls to reprocess documents
+    }
+}
+
+// Delete selected documents
+function deleteSelected() {
+    const selected = getSelectedDocuments();
+    if (selected.length === 0) {
+        showToast('请先选择要删除的文档', 'warning');
+        return;
+    }
+    
+    if (confirm(`确定要删除选中的 ${selected.length} 个文档吗？此操作不可撤销！`)) {
+        selected.forEach(id => {
+            fetch(`/document/${id}/delete/`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': getCsrfToken(),
+                    'Content-Type': 'application/json'
+                }
+            }).then(response => {
+                if (response.ok) {
+                    document.querySelector(`#doc-${id}`).closest('.col-12').remove();
+                }
+            });
+        });
+        
+        showToast(`正在删除 ${selected.length} 个文档...`, 'info');
+        
+        setTimeout(() => {
+            location.reload();
+        }, 2000);
+    }
+}
+
+// Get selected document IDs
+function getSelectedDocuments() {
+    const checkboxes = document.querySelectorAll('.document-checkbox:checked');
+    return Array.from(checkboxes).map(cb => cb.value);
+}
+
+// Reprocess single document
+function reprocessDocument(documentId) {
+    if (confirm('确定要重新处理这个文档吗？')) {
+        fetch(`/api/process-document/${documentId}/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': getCsrfToken(),
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showToast('文档重新处理已开始', 'success');
+                setTimeout(() => location.reload(), 2000);
+            } else {
+                showToast('重新处理失败: ' + (data.error || '未知错误'), 'error');
+            }
+        })
+        .catch(error => {
+            showToast('重新处理失败: ' + error.message, 'error');
+        });
+    }
+}
+
+// Open image modal
+function openImageModal(imageSrc, title) {
+    const modal = new bootstrap.Modal(document.getElementById('imageModal'));
+    const modalImage = document.getElementById('modalImage');
+    const modalTitle = document.getElementById('imageModalTitle');
+    const modalLink = document.getElementById('modalImageLink');
+    
+    modalImage.src = imageSrc;
+    modalImage.alt = title;
+    modalTitle.textContent = title + ' - 图片预览';
+    modalLink.href = imageSrc;
+    
+    modal.show();
+}
+
+// Get CSRF token
+function getCsrfToken() {
+    const token = document.querySelector('[name=csrfmiddlewaretoken]');
+    return token ? token.value : '';
+}
+
+// Show toast notification
+function showToast(message, type = 'info') {
+    const toast = document.createElement('div');
+    toast.className = `alert alert-${type === 'error' ? 'danger' : type} position-fixed fade show`;
+    toast.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 250px;';
+    toast.innerHTML = `
+        <div class="d-flex align-items-center">
+            <i class="fas fa-${type === 'success' ? 'check' : type === 'error' ? 'times' : 'info'}-circle me-2"></i>
+            ${message}
+            <button type="button" class="btn-close ms-auto" onclick="this.closest('.alert').remove()"></button>
+        </div>
+    `;
+    
+    document.body.appendChild(toast);
+    
+    setTimeout(() => {
+        if (toast.parentNode) {
+            toast.remove();
+        }
+    }, 5000);
+}
+</script>
+{% endblock %}

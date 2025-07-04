@@ -1,0 +1,525 @@
+<!-- semantic_qa/templates/semantic_qa/index.html -->
+{% extends 'semantic_qa/base.html' %}
+{% load static %}
+{% load i18n %}
+
+{% block title %}智能语义搜索{% endblock %}
+
+{% block extra_css %}
+<style>
+.search-hero {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 4rem 0;
+    margin: -1.5rem -15px 2rem -15px;
+    border-radius: 0 0 20px 20px;
+}
+
+.search-card {
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 15px;
+    padding: 2rem;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+}
+
+.search-input {
+    border: none;
+    border-radius: 10px;
+    padding: 1rem;
+    font-size: 1.1rem;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    transition: all 0.3s ease;
+}
+
+.search-input:focus {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.3);
+    transform: translateY(-2px);
+}
+
+.search-btn {
+    border-radius: 10px;
+    padding: 1rem 2rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    transition: all 0.3s ease;
+    background: #28a745;
+    border: none;
+}
+
+.search-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(40, 167, 69, 0.3);
+    background: #218838;
+}
+
+.stat-card {
+    border-radius: 15px;
+    padding: 1.5rem;
+    text-align: center;
+    transition: all 0.3s ease;
+    border: none;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+}
+
+.stat-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+}
+
+.stat-card h3 {
+    font-size: 2.5rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+}
+
+.quick-action-card {
+    border-radius: 15px;
+    padding: 2rem;
+    text-align: center;
+    transition: all 0.3s ease;
+    border: 2px solid #e9ecef;
+    background: white;
+    text-decoration: none;
+    color: inherit;
+    display: block;
+    height: 100%;
+}
+
+.quick-action-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+    border-color: #007bff;
+    color: #007bff;
+    text-decoration: none;
+}
+
+.quick-action-card i {
+    transition: all 0.3s ease;
+}
+
+.quick-action-card:hover i {
+    transform: scale(1.1);
+}
+
+.example-badge {
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+    padding: 0.5rem 1rem;
+    border-radius: 20px;
+    font-size: 0.9rem;
+    margin: 0.2rem;
+    display: inline-block;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.example-badge:hover {
+    background: rgba(255, 255, 255, 0.3);
+    transform: translateY(-2px);
+}
+
+.popular-tag {
+    background: #6c757d;
+    color: white;
+    padding: 0.3rem 0.8rem;
+    border-radius: 15px;
+    font-size: 0.8rem;
+    margin: 0.2rem;
+    display: inline-block;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.popular-tag:hover {
+    background: #495057;
+    transform: translateY(-1px);
+    color: white;
+}
+
+@media (max-width: 768px) {
+    .search-hero {
+        padding: 2rem 0;
+        margin: -1.5rem -15px 1rem -15px;
+    }
+    
+    .search-card {
+        padding: 1.5rem;
+    }
+    
+    .stat-card h3 {
+        font-size: 2rem;
+    }
+    
+    .quick-action-card {
+        margin-bottom: 1rem;
+    }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="search-hero">
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-lg-8">
+                <!-- Search Header -->
+                <div class="text-center mb-4">
+                    <h1 class="display-4 mb-3">
+                        <i class="fas fa-search me-3"></i>
+                        智能语义搜索
+                    </h1>
+                    <p class="lead">
+                        {% trans "Find answers using intelligent semantic search powered by AI" %}
+                    </p>
+                </div>
+
+                <!-- Search Form -->
+                <div class="search-card">
+                    <form id="searchForm" method="get" action="{% url 'semantic_qa:enhanced_search_results' %}">
+                        <div class="row">
+                            <div class="col-md-8 mb-3">
+                                <input type="text" 
+                                       class="form-control search-input" 
+                                       name="q" 
+                                       id="searchQuery"
+                                       placeholder="{% trans 'Enter SKU, question, keywords, or describe what you need...' %}"
+                                       autocomplete="off"
+                                       required>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <select class="form-control search-input" name="lang" id="languageSelect">
+                                    <option value="en"selected>🇺🇸 English</option>
+                                    <option value="zh">🇨🇳 中文</option>
+                                    <option value="es">🇪🇸 Español</option>
+                                    <option value="fr">🇫🇷 Français</option>
+                                    <option value="de">🇩🇪 Deutsch</option>
+                                    <option value="ja">🇯🇵 日本語</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-success search-btn">
+                                <i class="fas fa-search me-2"></i>{% trans "Search" %}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Search Examples -->
+                <div class="mt-4 text-center">
+                    <h6 class="mb-3">搜索示例：</h6>
+                    <div class="d-flex flex-wrap justify-content-center">
+                        <span class="example-badge" onclick="setSearchQuery('ABC123 steering wheel')">
+                            ABC123 steering wheel
+                        </span>
+                        <span class="example-badge" onclick="setSearchQuery('installation wiring')">
+                            installation wiring
+                        </span>
+                        <span class="example-badge" onclick="setSearchQuery('control not working')">
+                            control not working
+                        </span>
+                        <span class="example-badge" onclick="setSearchQuery('XYZ789')">
+                            XYZ789
+                        </span>
+                        <span class="example-badge" onclick="setSearchQuery('welding troubleshooting')">
+                            welding troubleshooting
+                        </span>
+                        <span class="example-badge" onclick="setSearchQuery('how to install')">
+                            how to install
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="container">
+    <!-- Statistics -->
+    <div class="row mb-5">
+        <div class="col-md-3 mb-3">
+            <div class="card stat-card bg-primary text-white">
+                <div class="card-body">
+                    <h3>{{ total_qa_entries|default:0 }}</h3>
+                    <p class="mb-0">问答条目</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card stat-card bg-success text-white">
+                <div class="card-body">
+                    <h3>{{ total_documents|default:0 }}</h3>
+                    <p class="mb-0">文档数量</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card stat-card bg-warning text-white">
+                <div class="card-body">
+                    <h3>{{ total_queries|default:0 }}</h3>
+                    <p class="mb-0">搜索次数</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card stat-card bg-info text-white">
+                <div class="card-body">
+                    <h3>6</h3>
+                    <p class="mb-0">支持语言</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="row mb-5">
+        <div class="col-12">
+            <h3 class="text-center mb-4">
+                <i class="fas fa-bolt text-warning me-2"></i>快速操作
+            </h3>
+            <div class="row">
+                <div class="col-lg-3 col-md-6 mb-4">
+                    <a href="{% url 'semantic_qa:upload_document_page' %}" class="quick-action-card">
+                        <i class="fas fa-file-upload fa-3x text-primary mb-3"></i>
+                        <h5>上传文档</h5>
+                        <p class="text-muted mb-0">PDF、图片、网页链接</p>
+                    </a>
+                </div>
+                <div class="col-lg-3 col-md-6 mb-4">
+                    <a href="{% url 'semantic_qa:upload_excel_page' %}" class="quick-action-card">
+                        <i class="fas fa-file-excel fa-3x text-success mb-3"></i>
+                        <h5>上传Excel</h5>
+                        <p class="text-muted mb-0">批量问答数据</p>
+                    </a>
+                </div>
+                <div class="col-lg-3 col-md-6 mb-4">
+                    <a href="{% url 'semantic_qa:manage_documents' %}" class="quick-action-card">
+                        <i class="fas fa-folder-open fa-3x text-info mb-3"></i>
+                        <h5>管理文档</h5>
+                        <p class="text-muted mb-0">查看已上传文档</p>
+                    </a>
+                </div>
+                <div class="col-lg-3 col-md-6 mb-4">
+                    <a href="{% url 'semantic_qa:admin_dashboard' %}" class="quick-action-card">
+                        <i class="fas fa-chart-bar fa-3x text-secondary mb-3"></i>
+                        <h5>数据分析</h5>
+                        <p class="text-muted mb-0">查看系统统计</p>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Popular Searches -->
+    {% if popular_queries %}
+    <div class="row mb-5">
+        <div class="col-12">
+            <h5 class="mb-3">
+                <i class="fas fa-fire text-danger me-2"></i>热门搜索
+            </h5>
+            <div class="d-flex flex-wrap">
+                {% for query in popular_queries %}
+                <span class="popular-tag" onclick="setSearchQuery('{{ query.processed_query|escapejs }}')">
+                    {{ query.processed_query }} ({{ query.count }})
+                </span>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Recent RAG Queries -->
+    {% if recent_rag_queries %}
+    <div class="row mb-5">
+        <div class="col-12">
+            <h5 class="mb-3">
+                <i class="fas fa-robot text-primary me-2"></i>最近AI问答
+            </h5>
+            <div class="row">
+                {% for query in recent_rag_queries %}
+                <div class="col-md-4 mb-3">
+                    <div class="card">
+                        <div class="card-body">
+                            <h6 class="card-title">{{ query.query_text|truncatechars:50 }}</h6>
+                            <p class="card-text text-muted small">
+                                {{ query.generated_answer|truncatechars:100 }}
+                            </p>
+                            <small class="text-muted">
+                                <i class="fas fa-clock me-1"></i>{{ query.created_at|timesince }}前
+                            </small>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Features -->
+    <div class="row mb-5">
+        <div class="col-12">
+            <h3 class="text-center mb-4">
+                <i class="fas fa-star text-warning me-2"></i>系统特性
+            </h3>
+            <div class="row">
+                <div class="col-md-4 mb-3">
+                    <div class="text-center">
+                        <i class="fas fa-brain fa-3x text-primary mb-3"></i>
+                        <h5>智能语义搜索</h5>
+                        <p class="text-muted">基于ChatGLM的智能语义理解，支持多语言搜索</p>
+                    </div>
+                </div>
+                <div class="col-md-4 mb-3">
+                    <div class="text-center">
+                        <i class="fas fa-file-alt fa-3x text-success mb-3"></i>
+                        <h5>多格式文档</h5>
+                        <p class="text-muted">支持PDF、图片、网页链接等多种格式文档处理</p>
+                    </div>
+                </div>
+                <div class="col-md-4 mb-3">
+                    <div class="text-center">
+                        <i class="fas fa-language fa-3x text-info mb-3"></i>
+                        <h5>多语言支持</h5>
+                        <p class="text-muted">支持中文、英文、西班牙文、法文、德文、日文</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Enhanced search functionality
+document.addEventListener('DOMContentLoaded', function() {
+    const searchForm = document.getElementById('searchForm');
+    const searchQuery = document.getElementById('searchQuery');
+    
+    // Focus on search input when page loads
+    searchQuery.focus();
+    
+    // Handle form submission
+    searchForm.addEventListener('submit', function(e) {
+        const query = searchQuery.value.trim();
+        if (!query) {
+            e.preventDefault();
+            showAlert('请输入搜索内容', 'warning');
+            return false;
+        }
+        
+        // Add loading state
+        const submitBtn = searchForm.querySelector('button[type="submit"]');
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>搜索中...';
+    });
+    
+    // Auto-complete functionality
+    searchQuery.addEventListener('input', function() {
+        const query = this.value.trim();
+        if (query.length > 2) {
+            // Here you could add auto-complete suggestions
+            console.log('Searching for:', query);
+        }
+    });
+    
+    // Keyboard shortcuts
+    document.addEventListener('keydown', function(e) {
+        // Ctrl/Cmd + K to focus search
+        if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+            e.preventDefault();
+            searchQuery.focus();
+            searchQuery.select();
+        }
+    });
+});
+
+// Set search query from examples or popular searches
+function setSearchQuery(query) {
+    const searchInput = document.getElementById('searchQuery');
+    if (searchInput) {
+        searchInput.value = query;
+        searchInput.focus();
+        
+        // Add a subtle animation
+        searchInput.style.transform = 'scale(1.02)';
+        setTimeout(() => {
+            searchInput.style.transform = 'scale(1)';
+        }, 200);
+    }
+}
+
+// Show alert messages
+function showAlert(message, type = 'info') {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
+    alertDiv.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    document.body.appendChild(alertDiv);
+    
+    // Auto-dismiss after 5 seconds
+    setTimeout(() => {
+        if (alertDiv.parentNode) {
+            alertDiv.remove();
+        }
+    }, 5000);
+}
+
+// Add smooth scrolling to internal links
+document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+    anchor.addEventListener('click', function (e) {
+        e.preventDefault();
+        const target = document.querySelector(this.getAttribute('href'));
+        if (target) {
+            target.scrollIntoView({
+                behavior: 'smooth',
+                block: 'start'
+            });
+        }
+    });
+});
+
+// Add loading animation to cards
+const cards = document.querySelectorAll('.quick-action-card');
+cards.forEach((card, index) => {
+    card.style.animationDelay = `${index * 0.1}s`;
+    card.classList.add('animate-fade-in');
+});
+
+// Add CSS animation
+const style = document.createElement('style');
+style.textContent = `
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    
+    .animate-fade-in {
+        animation: fadeIn 0.6s ease-out forwards;
+    }
+    
+    .search-input:focus {
+        transition: all 0.3s ease;
+    }
+    
+    .example-badge:active {
+        transform: translateY(0) scale(0.95);
+    }
+    
+    .popular-tag:active {
+        transform: translateY(0) scale(0.95);
+    }
+`;
+document.head.appendChild(style);
+</script>
+{% endblock %}
